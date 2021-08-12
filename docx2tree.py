@@ -1,5 +1,5 @@
-import os
 from __future__ import annotations
+import os
 from typing import List
 
 from docx import Document
@@ -23,6 +23,35 @@ class Node:
     for c in self.children:
       results += repr(c)
     return results
+
+  def get_branch_str(self):
+    node = self
+    result = '- ' * node.level + node.context.text
+    while node.parent:
+      node = node.parent
+      result = '- ' * node.level + node.context.text + os.linesep + result
+    return result
+  
+  def convert_paragraph_to_html(self, hide_bold: bool):
+    result = ''
+    for r in self.context.runs:
+      if r.bold:
+        result += '<b>' + ('_' * len(r.text) if hide_bold else r.text) + '</b>'
+      elif r.italic:
+        result += '<i>' + ('_' * len(r.text) if hide_bold else r.text) + '</i>'
+      else:
+        result += r.text
+    return result
+
+  def convert_to_anki_note(self):
+    if (self.context.style.name.split()[0].lower() != 'normal'):
+      return []
+    if ':' in self.context.text:
+      question = self.context.runs[0].text.split(':',1)[0] + ':'
+    else:
+      question = self.convert_paragraph_to_html_hide_bold(True)
+    answer = self.convert_paragraph_to_html(False)
+    return [question, answer]
 
 
 def convert_paragraphs_to_tree(paragraphs: List[Paragraph]):
