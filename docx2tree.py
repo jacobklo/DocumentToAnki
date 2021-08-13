@@ -2,7 +2,6 @@ from __future__ import annotations
 import os
 from typing import List
 
-from docx import Document
 from docx.text.paragraph import Paragraph
 
 
@@ -15,6 +14,9 @@ class Node:
   
   def add(self, node: Node):
     self.children.append(node)
+  
+  def is_normal(self):
+    return self.context and self.context.style.name.split()[0].lower() == 'normal'
 
   def __repr__(self):
     results = '- ' * self.level
@@ -24,15 +26,15 @@ class Node:
       results += repr(c)
     return results
 
-  def get_branch_str(self):
+  def get_branch_str(self) -> str:
     node = self
     result = '- ' * node.level + node.context.text
     while node.parent:
       node = node.parent
       result = '- ' * node.level + node.context.text + os.linesep + result
-    return result
+    return result.replace('\n', '<br>')
   
-  def convert_paragraph_to_html(self, hide_bold: bool):
+  def convert_paragraph_to_html(self, hide_bold: bool) -> str:
     result = ''
     for r in self.context.runs:
       if r.bold:
@@ -41,20 +43,20 @@ class Node:
         result += '<i>' + ('_' * len(r.text) if hide_bold else r.text) + '</i>'
       else:
         result += r.text
-    return result
+    return result.replace('\n', '<br>')
 
-  def convert_to_anki_note(self):
-    if (self.context.style.name.split()[0].lower() != 'normal'):
-      return []
+  def convert_to_anki_note_field(self) -> List[str, str, str]:
+    if not self.is_normal():
+      return ['','','']
     if ':' in self.context.text:
       question = self.context.runs[0].text.split(':',1)[0] + ':'
     else:
-      question = self.convert_paragraph_to_html_hide_bold(True)
+      question = self.convert_paragraph_to_html(True)
     answer = self.convert_paragraph_to_html(False)
-    return [question, answer]
+    return [question, answer, self.get_branch_str()]
 
 
-def convert_paragraphs_to_tree(paragraphs: List[Paragraph]):
+def convert_paragraphs_to_tree(paragraphs: List[Paragraph]) -> Node:
   root = Node(0, paragraphs[0], None)
   cur_parent = root
   cur_heading_level = 0
