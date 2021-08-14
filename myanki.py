@@ -62,7 +62,7 @@ ANSWER = '''
 STYLE = '''
 .card {
  font-family: 'DejaVu Sans Mono';
- text-align: center;
+ text-align: left;
  color: white;
  background-color: rgba(42, 129, 151,1);
  text-shadow: 0px 4px 3px rgba(0,0,0,0.4),
