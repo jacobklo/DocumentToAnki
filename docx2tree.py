@@ -1,9 +1,13 @@
 from __future__ import annotations
 import os
+import io
+import shutil
+import re
 from typing import List
+from PIL import Image
 
 from docx.text.paragraph import Paragraph
-
+from docx.package import OpcPackage
 
 class Node:
   def __init__(self, level: int, context: List[Paragraph], parent: Node):
@@ -54,17 +58,52 @@ class Node:
     return result.replace(os.linesep, '<br>').replace('\t', '&ensp;')
 
 
-  def convert_to_anki_note_field(self) -> List[str, str, str]:
+  def convert_to_anki_note_field(self) -> List[str, str, str, str]:
     if not self.is_normal() or not self.context or not isinstance(self.context, List):
-      return ['','','']
+      return ['','','','']
     question, answer = '', ''
     for p in self.context:
       question += self.convert_paragraph_to_html(p, True) + '<br>'
       answer += self.convert_paragraph_to_html(p, False) + '<br>'
-    return [question, answer, self.get_branch_str()]
+    return [question, answer, '', self.get_branch_str()]
 
 
-def convert_paragraphs_to_tree(paragraphs: List[Paragraph]) -> Node:
+class PhotoNode(Node):
+  def __init__(self, level: int, image_name: str, image_index: int, parent: Node):
+    super(PhotoNode, self).__init__(level, [], parent)
+    self.imageName = image_name
+    self.imageIndex = image_index
+  
+  def convert_to_anki_note_field(self) -> List[str, str, str, str]:
+    question, answer = '', ''
+    media = '<img src="' + self.imageName + '">'
+    return [question, answer, media, self.get_branch_str()]
+
+
+def get_image_index(package: OpcPackage, imageName: str) -> int:
+  document = package.main_document_part.document
+  for i in range(len(document.paragraphs)):
+    if imageName in package.image_parts._image_parts[i].partname:
+      return i
+  return -1
+
+
+def get_image_name(paragraph: Paragraph ):
+  if not paragraph.runs:
+    return ""
+  cur_xml = paragraph.runs[0].element.xml
+  regex_match = re.search("image[0-9]*.png", cur_xml)
+  if regex_match:
+    return regex_match.group(0)
+  return ""
+
+
+def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
+  # reset image directory first
+  shutil.rmtree('image', ignore_errors=True)
+  os.mkdir('image')
+  
+  paragraphs = package.main_document_part.document.paragraphs
   root = Node(0, [paragraphs[0]], None)
   cur_parent = root
   cur_heading_level = 0
@@ -81,6 +120,17 @@ def convert_paragraphs_to_tree(paragraphs: List[Paragraph]) -> Node:
       cur_parent.add(new_node)
       i += int(paragraphs[i].text[2]) + 1
       continue
+      
+    if paragraphs[i].text[0:2] == '®®' and paragraphs[i].text[2].isnumeric():
+      i += 1
+      image_name = get_image_name(paragraphs[i])
+      image_index = get_image_index(package, image_name)
+      new_node = PhotoNode(cur_parent.level+1, image_name, image_index, cur_parent)
+      cur_parent.add(new_node)
+
+      img_binary = package.image_parts._image_parts[image_index].blob
+      image = Image.open(io.BytesIO(img_binary))
+      image.save('image/'+image_name)
 
     # normal paragraph, treat as same level as current level
     if p_style[0].lower() == 'normal':
