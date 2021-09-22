@@ -60,7 +60,7 @@ class Node:
 
   def convert_to_anki_note_field(self) -> List[str, str, str, str]:
     if not self.is_normal() or not self.context or not isinstance(self.context, List):
-      return ['','','','']
+      return None
     question, answer = '', ''
     for p in self.context:
       question += self.convert_paragraph_to_html(p, True) + '<br>'
@@ -75,9 +75,17 @@ class PhotoNode(Node):
     self.imageIndex = image_index
   
   def convert_to_anki_note_field(self) -> List[str, str, str, str]:
-    question, answer = '', ''
+    question, answer = ' ', ' '
     media = '<img src="' + self.imageName + '">'
     return [question, answer, media, self.get_branch_str()]
+
+  def __repr__(self):
+    results = '- ' * self.level
+    if self.imageName:
+      results += self.imageName + os.linesep
+    for c in self.children:
+      results += repr(c)
+    return results
 
 
 def get_image_index(package: OpcPackage, imageName: str) -> int:

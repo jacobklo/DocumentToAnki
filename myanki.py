@@ -2,7 +2,7 @@
 import genanki
 import hashlib
 from typing import List
-from docx2tree import Node
+from docx2tree import Node, PhotoNode
 
 class MyModel(genanki.Model):
 
@@ -26,11 +26,12 @@ def create_anki_notes_from_node(root: Node, model: genanki.Model) -> List[genank
 
   result = []
   
-  if root.is_normal():
-    my_note = genanki.Note(
-      model=model,
-      fields=root.convert_to_anki_note_field())
-    result += [my_note]
+  if isinstance(root, PhotoNode) or root.is_normal():
+    if root.convert_to_anki_note_field():
+      my_note = genanki.Note(
+        model=model,
+        fields=root.convert_to_anki_note_field())
+      result += [my_note]
 
   for c in root.children:
     result += create_anki_notes_from_node(c, model)
