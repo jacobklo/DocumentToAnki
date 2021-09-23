@@ -48,6 +48,8 @@ class Node:
 
   def convert_paragraph_to_html(self, paragraph: Paragraph, hide_bold: bool) -> str:
     result = ''
+    if not self.is_normal() or not paragraph.text.replace(' ', ''):
+      return ''
     for r in paragraph.runs:
       if r.bold:
         result += '<b>' + ('_' * len(r.text) if hide_bold else r.text) + '</b>'
@@ -58,31 +60,17 @@ class Node:
     return result.replace(os.linesep, '<br>').replace('\t', '&ensp;')
 
 
-  def convert_to_anki_note_field(self) -> List[str, str, str, str]:
-    if not self.is_normal() or not self.context or not isinstance(self.context, List):
-      return None
-    question, answer = '', ''
-    for p in self.context:
-      question += self.convert_paragraph_to_html(p, True) + '<br>'
-      answer += self.convert_paragraph_to_html(p, False) + '<br>'
-    return [question, answer, '', self.get_branch_str()]
-
-
 class PhotoNode(Node):
-  def __init__(self, level: int, image_name: str, image_index: int, parent: Node):
+  def __init__(self, level: int, image_name: str, image_index: int, show_on_children_level: int, parent: Node):
     super(PhotoNode, self).__init__(level, [], parent)
     self.imageName = image_name
     self.imageIndex = image_index
-  
-  def convert_to_anki_note_field(self) -> List[str, str, str, str]:
-    question, answer = ' ', ' '
-    media = '<img src="' + self.imageName + '">'
-    return [question, answer, media, self.get_branch_str()]
+    self.showOnChildrenLevel = show_on_children_level
 
   def __repr__(self):
     results = '- ' * self.level
     if self.imageName:
-      results += self.imageName + os.linesep
+      results += self.imageName + "ShowOnChildren : " + self.showOnChildrenLevel + os.linesep
     for c in self.children:
       results += repr(c)
     return results
@@ -91,6 +79,8 @@ class PhotoNode(Node):
 def get_image_index(package: OpcPackage, imageName: str) -> int:
   document = package.main_document_part.document
   for i in range(len(document.paragraphs)):
+    if i >= len(package.image_parts._image_parts):
+      raise Exception('The Save function from Microsoft Word create a different image name for each image, please use Google Docs and export as .docx file only')
     if imageName in package.image_parts._image_parts[i].partname:
       return i
   return -1
@@ -133,7 +123,8 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
       i += 1
       image_name = get_image_name(paragraphs[i])
       image_index = get_image_index(package, image_name)
-      new_node = PhotoNode(cur_parent.level+1, image_name, image_index, cur_parent)
+      show_on_children_level = int(paragraphs[i-1].text[2])
+      new_node = PhotoNode(cur_parent.level+1, image_name, image_index, show_on_children_level, cur_parent)
       cur_parent.add(new_node)
 
       img_binary = package.image_parts._image_parts[image_index].blob

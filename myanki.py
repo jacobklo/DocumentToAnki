@@ -21,21 +21,36 @@ class MyModel(genanki.Model):
 
 
 
-def create_anki_notes_from_node(root: Node, model: genanki.Model) -> List[genanki.Note]:
+def create_anki_notes_from_node(root: Node, model: genanki.Model, current_level = 0, all_photos_from_parent=[]) -> List[genanki.Note]:
   if not root: return []
 
   result = []
-  
-  if isinstance(root, PhotoNode) or root.is_normal():
-    if root.convert_to_anki_note_field():
-      my_note = genanki.Note(
-        model=model,
-        fields=root.convert_to_anki_note_field())
-      result += [my_note]
+
+  if root.is_normal() and root.context and isinstance(root.context, List):
+    question, answer = '', ''
+    branch = root.get_branch_str()
+    for p in root.context:
+      question += root.convert_paragraph_to_html(p, True) + '<br>'
+      answer += root.convert_paragraph_to_html(p, False) + '<br>'
+      
+    media = ''
+    for pic in all_photos_from_parent:
+      if pic.level - current_level < pic.showOnChildrenLevel:
+        media += '<img src="' + pic.imageName + '"><br>'
+
+    my_note = genanki.Note(
+      model=model,
+      fields=[question, answer, media, branch])
+    result += [my_note]
+
+  new_all_photos_children = []
+  for c in root.children:
+    if isinstance(c, PhotoNode):
+      new_all_photos_children.append(c)
 
   for c in root.children:
-    result += create_anki_notes_from_node(c, model)
-  
+    result += create_anki_notes_from_node(c, model, current_level + 1, all_photos_from_parent + new_all_photos_children)
+
   return result
 
 
