@@ -97,6 +97,35 @@ def get_image_name(paragraph: Paragraph ):
 
 
 def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
+  """
+  Convert a docx file package into internal Node tree structure
+  
+  Support features:
+  1) Each line in Document is converted into a Node
+  2) Combine multiple lines into 1 Node with "©©"
+  3) Identify photos with "®®"
+
+  Input: OpcPackage, which is the file structure of a docx file
+  You can get a OpcPackage by following:
+  
+  f = open('Document.docx', 'rb')
+  package = Package.open(f)
+  f.close()
+
+  
+  Node parent/children structure is based on Headings in Document
+
+  Example.docx contains:
+  Heading1
+  - word1
+  - Heading2
+  -- word2
+
+  Node root => Heading1
+  root.children[1] => word1
+  root.children[2] => Heading2
+  root.children[2].children[1] => word2
+  """
   # reset image directory first
   shutil.rmtree('image', ignore_errors=True)
   os.mkdir('image')
@@ -111,14 +140,23 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
   while(i < len(paragraphs)):
     p_style = paragraphs[i].style.name.split()
 
-    # Special
+    # ©©8 means combine the next 8 lines inside Document into only 1 text node, so only 1 Anki Note is created
     if paragraphs[i].text[0:2] == '©©' and paragraphs[i].text[2].isnumeric():
       group_paragraphs = paragraphs[i:i+int(paragraphs[i].text[2])+1]
       new_node = Node(cur_parent.level+1, group_paragraphs, cur_parent)
       cur_parent.add(new_node)
       i += int(paragraphs[i].text[2]) + 1
       continue
-      
+    
+    # ®®1 means the very next line is a pics, and this pics is going to show on every notes created from each line of this heading level in this document
+    # For example:
+    # Heading 1
+    # texttext1
+    # ®®2
+    # image1.png
+    # - Heading 2
+    # - texttext2
+    # In this example, 2 Anki Notes is created, texttext1 and texttext2. Each note has image1.png in it.
     if paragraphs[i].text[0:2] == '®®' and paragraphs[i].text[2].isnumeric():
       i += 1
       image_name = get_image_name(paragraphs[i])

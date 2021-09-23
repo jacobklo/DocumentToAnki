@@ -26,28 +26,35 @@ def create_anki_notes_from_node(root: Node, model: genanki.Model, current_level 
 
   result = []
 
+  # Check if node is text paragraph
   if root.is_normal() and root.context and isinstance(root.context, List):
     question, answer = '', ''
     branch = root.get_branch_str()
+    # So Document can save a line into multiple context, this is to add them all. For example: "This is <bold>one</bold> line" has 3 contexts
     for p in root.context:
       question += root.convert_paragraph_to_html(p, True) + '<br>'
       answer += root.convert_paragraph_to_html(p, False) + '<br>'
       
     media = ''
+    # For all photos that Parent and grandparent and up contains, add into Anki note as well, because it may have info that need for that line/note
     for pic in all_photos_from_parent:
+      # Right after ®®, there is an integer, ®®1 means show pic on lines/notes that is same level of this tree, ®®2 shows on this level and children nodes.
       if pic.level - current_level < pic.showOnChildrenLevel:
         media += '<img src="' + pic.imageName + '"><br>'
 
+    # create Anki note
     my_note = genanki.Note(
       model=model,
       fields=[question, answer, media, branch])
     result += [my_note]
 
   new_all_photos_children = []
+  # Append all photos of next children level here, so children level recursive call on each text node/note/line has all records of pic on that level.
   for c in root.children:
     if isinstance(c, PhotoNode):
       new_all_photos_children.append(c)
 
+  # recursive call each children, also appends this level pics, just in case they need to show on gran-children level
   for c in root.children:
     result += create_anki_notes_from_node(c, model, current_level + 1, all_photos_from_parent + new_all_photos_children)
 
