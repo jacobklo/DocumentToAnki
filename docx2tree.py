@@ -61,8 +61,8 @@ class Node:
 
 
 class PhotoNode(Node):
-  def __init__(self, level: int, image_name: str, image_index: int, show_on_children_level: int, parent: Node):
-    super(PhotoNode, self).__init__(level, [], parent)
+  def __init__(self, level: int, image_name: str, image_index: int, show_on_children_level: int, context: List[Paragraph], parent: Node):
+    super(PhotoNode, self).__init__(level, context, parent)
     self.imageName = image_name
     self.imageIndex = image_index
     self.showOnChildrenLevel = show_on_children_level
@@ -158,11 +158,12 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
     # - texttext2
     # In this example, 2 Anki Notes is created, texttext1 and texttext2. Each note has image1.png in it.
     if paragraphs[i].text[0:2] == '®®' and paragraphs[i].text[2].isnumeric():
+      imageInfo = [paragraphs[i]]
+      show_on_children_level = int(paragraphs[i].text[2])
       i += 1
       image_name = get_image_name(paragraphs[i])
       image_index = get_image_index(package, image_name)
-      show_on_children_level = int(paragraphs[i-1].text[2])
-      new_node = PhotoNode(cur_parent.level+1, image_name, image_index, show_on_children_level, cur_parent)
+      new_node = PhotoNode(cur_parent.level+1, image_name, image_index, show_on_children_level, imageInfo, cur_parent)
       cur_parent.add(new_node)
 
       img_binary = package.image_parts._image_parts[image_index].blob
