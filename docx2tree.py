@@ -142,10 +142,11 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
 
     # ©©8 means combine the next 8 lines inside Document into only 1 text node, so only 1 Anki Note is created
     if paragraphs[i].text[0:2] == '©©' and paragraphs[i].text[2].isnumeric():
-      group_paragraphs = paragraphs[i:i+int(paragraphs[i].text[2])+1]
+      howManyLinesToSkip = int(paragraphs[i].text.split()[0].replace('©©', ''))
+      group_paragraphs = paragraphs[i:i+howManyLinesToSkip+1]
       new_node = Node(cur_parent.level+1, group_paragraphs, cur_parent)
       cur_parent.add(new_node)
-      i += int(paragraphs[i].text[2]) + 1
+      i += howManyLinesToSkip + 1
       continue
     
     # ®®1 means the very next line is a pics, and this pics is going to show on every notes created from each line of this heading level in this document
@@ -170,8 +171,8 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
       image = Image.open(io.BytesIO(img_binary))
       image.save('image/'+image_name)
 
-    # normal paragraph, treat as same level as current level
-    if p_style[0].lower() == 'normal':
+    # normal paragraph, treat as same level as current level, check if this line is not empty
+    if p_style[0].lower() == 'normal' and paragraphs[i].text.replace(' ','').replace('\n',''):
       new_node = Node(cur_parent.level+1, [paragraphs[i]], cur_parent)
       cur_parent.add(new_node)
     

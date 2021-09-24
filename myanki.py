@@ -1,7 +1,7 @@
 
 import genanki
 import hashlib
-from typing import List
+from typing import List, Set, Tuple
 from docx2tree import Node, PhotoNode
 
 class MyModel(genanki.Model):
@@ -31,18 +31,18 @@ def _get_question_answer_branch(node: Node):
   return (question, answer, branch)
 
 
-def create_anki_notes_from_node(root: Node, model: genanki.Model, current_level = 0, all_photos_from_parent=[]) -> List[genanki.Note]:
-  if not root: return []
-
+def _create_notes_from_node(root: Node, current_level: int, all_photos_from_parent: List[PhotoNode]) -> Set[Tuple[str, str, str, str]]:
+  result = set()
   # Check if it is one-off photo. It is one line of note that has a photo. it is identify with '®®0'
   if isinstance(root, PhotoNode) and root.showOnChildrenLevel == 0:
     question, answer, branch = _get_question_answer_branch(root)
     media = '<img src="' + root.imageName + '"><br>'
-    return [genanki.Note(model=model, fields=[question, answer, media, branch])]
+    result.add((question, answer, media, branch))
+    return result
 
-  result = []
+  # Check if there is a multi-line single Node, which is identify using '©©' and
   # Check if node is text paragraph
-  if root.is_normal() and root.context and isinstance(root.context, List):
+  if root.is_normal() and '®®' not in root.context[0].text and isinstance(root.context, List):
     question, answer, branch = _get_question_answer_branch(root)
       
     media = ''
@@ -52,9 +52,8 @@ def create_anki_notes_from_node(root: Node, model: genanki.Model, current_level 
       if pic.level - current_level < pic.showOnChildrenLevel:
         media += '<img src="' + pic.imageName + '"><br>'
 
-    # create Anki note
-    my_note = genanki.Note(model=model, fields=[question, answer, media, branch])
-    result += [my_note]
+    # create note
+    result.add((question, answer, media, branch))
 
   new_all_photos_children = []
   # Append all photos of next children level here, so children level recursive call on each text node/note/line has all records of pic on that level.
@@ -64,9 +63,21 @@ def create_anki_notes_from_node(root: Node, model: genanki.Model, current_level 
 
   # recursive call each children, also appends this level pics, just in case they need to show on gran-children level
   for c in root.children:
-    result += create_anki_notes_from_node(c, model, current_level + 1, all_photos_from_parent + new_all_photos_children)
+    result = result.union(_create_notes_from_node(c, current_level + 1, all_photos_from_parent + new_all_photos_children))
 
   return result
+
+
+def create_anki_notes_from_node(root: Node, model: genanki.Model) -> List[genanki.Note]:
+  if not root: return []
+
+  allNotes = _create_notes_from_node(root, 0, [])
+  results = []
+  for n in allNotes:
+    newNotes = genanki.Note(model=model, fields=[n[0], n[1], n[2], n[3]])
+    results += [newNotes]
+  return results
+
 
 
 QUESTION = '''
