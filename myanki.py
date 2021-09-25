@@ -1,8 +1,38 @@
 
 import genanki
 import hashlib
+from pathlib import Path
 from typing import List, Set, Tuple
+from docx.package import Package
+
 from docx2tree import Node, PhotoNode
+from docx2tree import convert_paragraphs_to_tree
+
+
+def docx_to_anki_notes(filename: str):
+  f = open(filename+'.docx', 'rb')
+  pp = Package.open(f)
+  f.close()
+
+  root = convert_paragraphs_to_tree(pp)
+
+  my_model = MyModel('Simple Model', fields=[{'name': 'Question'}, {'name': 'Answer'}, {
+      'name': 'Media'}, {'name': 'Path'}], front_html=QUESTION, back_html=ANSWER, css=STYLE)
+
+  notes = create_node_to_anki_notes(root, my_model)
+
+  my_deck = genanki.Deck(deck_id=abs(hash(filename)) % (10 ** 10), name=filename)
+
+  for n in notes:
+    my_deck.add_note(n)
+
+  img_path = Path(r'image').glob('**/*')
+  images = ['image/'+x.name for x in img_path if x.is_file()]
+
+  anki_output = genanki.Package(my_deck)
+  anki_output.media_files = images
+  anki_output.write_to_file(filename+'.apkg')
+
 
 class MyModel(genanki.Model):
 
@@ -21,6 +51,17 @@ class MyModel(genanki.Model):
 
 
 
+def create_node_to_anki_notes(root: Node, model: genanki.Model) -> List[genanki.Note]:
+  if not root: return []
+
+  allNotes = _create_node_to_notes(root, 0, [])
+  results = []
+  for n in allNotes:
+    newNotes = genanki.Note(model=model, fields=[n[0], n[1], n[2], n[3]])
+    results += [newNotes]
+  return results
+
+
 def _get_question_answer_branch(node: Node):
   question, answer = '', ''
   branch = node.get_branch_str()
@@ -31,7 +72,7 @@ def _get_question_answer_branch(node: Node):
   return (question, answer, branch)
 
 
-def _create_notes_from_node(root: Node, current_level: int, all_photos_from_parent: List[PhotoNode]) -> Set[Tuple[str, str, str, str]]:
+def _create_node_to_notes(root: Node, current_level: int, all_photos_from_parent: List[PhotoNode]) -> Set[Tuple[str, str, str, str]]:
   result = set()
   # Check if it is one-off photo. It is one line of note that has a photo. it is identify with '®®0'
   if isinstance(root, PhotoNode) and root.showOnChildrenLevel == 0:
@@ -44,7 +85,7 @@ def _create_notes_from_node(root: Node, current_level: int, all_photos_from_pare
   # Check if node is text paragraph
   if root.is_normal() and '®®' not in root.context[0].text and isinstance(root.context, List):
     question, answer, branch = _get_question_answer_branch(root)
-      
+
     media = ''
     # For all photos that Parent and grandparent and up contains, add into Anki note as well, because it may have info that need for that line/note
     for pic in all_photos_from_parent:
@@ -63,25 +104,15 @@ def _create_notes_from_node(root: Node, current_level: int, all_photos_from_pare
 
   # recursive call each children, also appends this level pics, just in case they need to show on gran-children level
   for c in root.children:
-    result = result.union(_create_notes_from_node(c, current_level + 1, all_photos_from_parent + new_all_photos_children))
+    result = result.union(_create_node_to_notes( c, current_level + 1, all_photos_from_parent + new_all_photos_children))
 
   return result
 
 
-def create_anki_notes_from_node(root: Node, model: genanki.Model) -> List[genanki.Note]:
-  if not root: return []
-
-  allNotes = _create_notes_from_node(root, 0, [])
-  results = []
-  for n in allNotes:
-    newNotes = genanki.Note(model=model, fields=[n[0], n[1], n[2], n[3]])
-    results += [newNotes]
-  return results
-
 
 
 QUESTION = '''
-<div class="front">{{Question}}</div>
+<div class="front">{{Path}}<br><br>{{Question}}</div>
 '''
 
 
@@ -89,13 +120,13 @@ ANSWER = '''
 <div class="back">
 <table style="width:100%">
   <tr>
-    <th>{{Media}}</th>
+    <th>{{Path}}</th>
   </tr>
   <tr>
     <th>{{Answer}}</th>
   </tr>
   <tr>
-    <th>{{Path}}</th>
+    <th>{{Media}}</th>
   </tr>
 </table>
 </div>
