@@ -175,14 +175,19 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
     if p_style[0].lower() == 'normal' and paragraphs[i].text.replace(' ','').replace('\n',''):
       new_node = Node(cur_parent.level+1, [paragraphs[i]], cur_parent)
       cur_parent.add(new_node)
+
+    # If the heading line is actually empty, then skip to next one
+    if not paragraphs[i].text.replace(' ', '').replace('\t', '').replace('\n', ''):
+      i += 1
+      continue
     
     # new paragraph has lower(bigger) heading, so move parent node must be higher up, closer to root
-    if p_style[0].lower() == 'heading' and int(p_style[1]) <= cur_heading_level and paragraphs[i].text.replace(' ', '').replace('\t', '').replace('\n', ''):
+    if p_style[0].lower() == 'heading' and int(p_style[1]) <= cur_heading_level:
       for _ in range(int(p_style[1]), cur_heading_level + 1):
         cur_parent = cur_parent.parent
     
     # This should go in either bigger heading, or smaller heading ( child node ). New node is created under current parent
-    if p_style[0].lower() == 'heading' and paragraphs[i].text.replace(' ', '').replace('\t', '').replace('\n', ''):
+    if p_style[0].lower() == 'heading':
       new_node = Node(cur_parent.level+1, [paragraphs[i]], cur_parent)
       cur_parent.add(new_node)
       cur_parent = new_node
