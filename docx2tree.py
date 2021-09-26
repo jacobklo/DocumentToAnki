@@ -22,7 +22,7 @@ class Node:
   
 
   def is_normal(self):
-    return self.context and self.context[0] and self.context[0].style.name.split()[0].lower() == 'normal'
+    return self.context is not None and len(self.context) > 0 and self.context[0].style.name.split()[0].lower() == 'normal'
 
 
   def __repr__(self):
@@ -70,7 +70,7 @@ class PhotoNode(Node):
   def __repr__(self):
     results = '- ' * self.level
     if self.imageName:
-      results += self.imageName + "ShowOnChildren : " + self.showOnChildrenLevel + os.linesep
+      results += self.imageName + "  ShowOnChildren : " + str(self.showOnChildrenLevel) + os.linesep
     for c in self.children:
       results += repr(c)
     return results
@@ -131,7 +131,7 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
   os.mkdir('image')
   
   paragraphs = package.main_document_part.document.paragraphs
-  root = Node(0, [paragraphs[0]], None)
+  root = Node(0, [], None)
   cur_parent = root
   cur_heading_level = 0
 
@@ -177,12 +177,12 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
       cur_parent.add(new_node)
     
     # new paragraph has lower(bigger) heading, so move parent node must be higher up, closer to root
-    if p_style[0].lower() == 'heading' and int(p_style[1]) <= cur_heading_level:
+    if p_style[0].lower() == 'heading' and int(p_style[1]) <= cur_heading_level and paragraphs[i].text.replace(' ', '').replace('\t', '').replace('\n', ''):
       for _ in range(int(p_style[1]), cur_heading_level + 1):
         cur_parent = cur_parent.parent
     
     # This should go in either bigger heading, or smaller heading ( child node ). New node is created under current parent
-    if p_style[0].lower() == 'heading':
+    if p_style[0].lower() == 'heading' and paragraphs[i].text.replace(' ', '').replace('\t', '').replace('\n', ''):
       new_node = Node(cur_parent.level+1, [paragraphs[i]], cur_parent)
       cur_parent.add(new_node)
       cur_parent = new_node
