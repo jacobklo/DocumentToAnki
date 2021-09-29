@@ -42,7 +42,10 @@ class Node:
     result = '- ' * node.level + node.context[0].text
     while node.parent:
       node = node.parent
-      result = '- ' * node.level + node.context[0].text + os.linesep + result
+      if len(node.context) > 0:
+        result = '- ' * node.level + node.context[0].text + os.linesep + result
+      else:
+        result = 'root ' + os.linesep + result
     return result.replace(os.linesep, '<br>').replace('\t', '&ensp;')
   
 
