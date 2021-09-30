@@ -19,7 +19,7 @@ def docx_to_anki_notes(filename: str):
   my_model = MyModel('Simple Model', fields=[{'name': 'Question'}, {'name': 'Answer'}, {
       'name': 'Media'}, {'name': 'Path'}], front_html=QUESTION, back_html=ANSWER, css=STYLE)
 
-  notes = create_node_to_anki_notes(root, my_model)
+  notes = create_node_to_anki_notes(root, my_model, filename)
 
   my_deck = genanki.Deck(deck_id=abs(hash(filename)) % (10 ** 10), name=filename)
 
@@ -51,13 +51,13 @@ class MyModel(genanki.Model):
 
 
 
-def create_node_to_anki_notes(root: Node, model: genanki.Model) -> List[genanki.Note]:
+def create_node_to_anki_notes(root: Node, model: genanki.Model, filename: str) -> List[genanki.Note]:
   if not root: return []
-
+  filename = filename.lower().replace(' ','_')
   allNotes = _create_node_to_notes(root, 0, [])
   results = []
   for n in allNotes:
-    newNotes = genanki.Note(model=model, fields=[n[0], n[1], n[2], n[3]])
+    newNotes = genanki.Note(model=model, fields=[n[0], n[1], n[2], n[3]], tags=n[4]+[filename])
     results += [newNotes]
   return results
 
@@ -72,20 +72,21 @@ def _get_question_answer_branch(node: Node):
   return (question, answer, branch)
 
 
-def _create_node_to_notes(root: Node, current_level: int, all_photos_from_parent: List[PhotoNode]) -> Set[Tuple[str, str, str, str]]:
-  result = set()
+def _create_node_to_notes(root: Node, current_level: int, all_photos_from_parent: List[PhotoNode]) -> List[Tuple[str, str, str, str, List[str]]]:
+  result = []
   # Check if it is one-off photo. It is one line of note that has a photo. it is identify with '®®0'
   if isinstance(root, PhotoNode) and root.showOnChildrenLevel == 0:
     question, answer, branch = _get_question_answer_branch(root)
     media = '<img src="' + root.imageName + '"><br>'
-    result.add((question, answer, media, branch))
+    tags = root.get_tags()
+    result += [(question, answer, media, branch, tags)]
     return result
 
   # Check if there is a multi-line single Node, which is identify using '©©' and
   # Check if node is text paragraph
   if root.is_normal() and '®®' not in root.context[0].text and isinstance(root.context, List):
     question, answer, branch = _get_question_answer_branch(root)
-
+    tags = root.get_tags()
     media = ''
     # For all photos that Parent and grandparent and up contains, add into Anki note as well, because it may have info that need for that line/note
     for pic in all_photos_from_parent:
@@ -94,7 +95,7 @@ def _create_node_to_notes(root: Node, current_level: int, all_photos_from_parent
         media += '<img src="' + pic.imageName + '"><br>'
 
     # create note
-    result.add((question, answer, media, branch))
+    result += [(question, answer, media, branch, tags)]
 
   new_all_photos_children = []
   # Append all photos of next children level here, so children level recursive call on each text node/note/line has all records of pic on that level.
@@ -104,7 +105,7 @@ def _create_node_to_notes(root: Node, current_level: int, all_photos_from_parent
 
   # recursive call each children, also appends this level pics, just in case they need to show on gran-children level
   for c in root.children:
-    result = result.union(_create_node_to_notes( c, current_level + 1, all_photos_from_parent + new_all_photos_children))
+    result += _create_node_to_notes( c, current_level + 1, all_photos_from_parent + new_all_photos_children)
 
   return result
 

@@ -3,7 +3,7 @@ import os
 import io
 import shutil
 import re
-from typing import List
+from typing import List, Set
 from PIL import Image
 
 from docx.text.paragraph import Paragraph
@@ -34,6 +34,18 @@ class Node:
       results += os.linesep
     for c in self.children:
       results += repr(c)
+    return results
+
+
+  def get_tags(self) -> List[str]:
+    if not self.parent or len(self.context) <= 0: return Set()
+    node = self.parent
+    results = []
+    while node:
+      if (len(node.context) > 0):
+        tag = re.sub('[^A-Z]+', '_', node.context[0].text, 0, re.I).lower()
+        results += [tag]
+      node = node.parent
     return results
 
 
