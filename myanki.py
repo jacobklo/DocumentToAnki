@@ -16,7 +16,7 @@ def docx_to_anki_notes(filename: str):
 
   root = convert_paragraphs_to_tree(pp)
 
-  my_model = MyModel('Simple Model', fields=[{'name': 'Question'}, {'name': 'Answer'}, {
+  my_model = MyModel(filename+' Model', fields=[{'name': 'Question'}, {'name': 'Answer'}, {
       'name': 'Media'}, {'name': 'Path'}], front_html=QUESTION, back_html=ANSWER, css=STYLE)
 
   notes = create_node_to_anki_notes(root, my_model, filename)
