@@ -3,6 +3,7 @@ import os
 import io
 import shutil
 import re
+import warnings
 from typing import List, Set
 from PIL import Image
 
@@ -105,7 +106,7 @@ def get_image_name(paragraph: Paragraph ):
   if not paragraph.runs:
     return ""
   cur_xml = paragraph.runs[0].element.xml
-  regex_match = re.search("image[0-9]*.png", cur_xml)
+  regex_match = re.search("image[0-9]*.[a-zA-Z]+", cur_xml)
   if regex_match:
     return regex_match.group(0)
   return ""
@@ -178,6 +179,10 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
       show_on_children_level = int(paragraphs[i].text[2])
       i += 1
       image_name = get_image_name(paragraphs[i])
+      if not image_name:
+        warnings.warn("Cannot process image : " + imageInfo[0].text)
+        continue
+
       image_index = get_image_index(package, image_name)
       new_node = PhotoNode(cur_parent.level+1, image_name, image_index, show_on_children_level, imageInfo, cur_parent)
       cur_parent.add(new_node)
