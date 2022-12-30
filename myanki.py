@@ -164,3 +164,5 @@ th {
 @font-face { font-family: DejaVu Sans Mono; src: url('_DejaVuSansMono.ttf'); }
 '''
 
+if __name__ == "__main__":
+  docx_to_anki_notes("Microsoft Word Documents to Anki converter demo")

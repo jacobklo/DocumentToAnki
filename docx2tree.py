@@ -1,95 +1,16 @@
-from __future__ import annotations
+
 import os
 import io
 import shutil
 import re
 import warnings
-from typing import List, Set
+
 from PIL import Image
 
 from docx.text.paragraph import Paragraph
-from docx.package import OpcPackage
+from docx.package import Package, OpcPackage
 
-class Node:
-  def __init__(self, level: int, context: List[Paragraph], parent: Node):
-    self.level = level
-    self.context = context
-    self.parent = parent
-    self.children = []
-  
-
-  def add(self, node: Node):
-    self.children.append(node)
-  
-
-  def is_normal(self):
-    return self.context is not None and len(self.context) > 0 and self.context[0].style.name.split()[0].lower() == 'normal'
-
-
-  def __repr__(self):
-    results = '- ' * self.level
-    if self.context and isinstance(self.context, List):
-      results += self.context[0].text
-      for i in range(1,len(self.context)):
-        results += os.linesep + '- ' * self.level + '\t\t' + self.context[i].text
-      results += os.linesep
-    for c in self.children:
-      results += repr(c)
-    return results
-
-
-  def get_tags(self) -> List[str]:
-    if not self.parent or len(self.context) <= 0: return Set()
-    node = self.parent
-    results = []
-    while node:
-      if (len(node.context) > 0):
-        tag = re.sub('[^A-Z]+', '_', node.context[0].text, 0, re.I).lower()
-        results += [tag]
-      node = node.parent
-    return results
-
-
-  def get_branch_str(self) -> str:
-    node = self.parent
-    result = '- ' * node.level + node.context[0].text
-    while node.parent:
-      node = node.parent
-      if len(node.context) > 0:
-        result = '- ' * node.level + node.context[0].text + os.linesep + result
-      else:
-        result = 'root ' + os.linesep + result
-    return result.replace(os.linesep, '<br>').replace('\t', '&ensp;')
-  
-
-  def convert_paragraph_to_html(self, paragraph: Paragraph, hide_bold: bool) -> str:
-    result = ''
-    if not self.is_normal() or not paragraph.text.replace(' ', ''):
-      return ''
-    for r in paragraph.runs:
-      if r.bold:
-        result += '<b>' + ('_' * len(r.text) if hide_bold else r.text) + '</b>'
-      elif r.italic:
-        result += '<i>' + ('_' * len(r.text) if hide_bold else r.text) + '</i>'
-      else:
-        result += r.text
-    return result.replace(os.linesep, '<br>').replace('\t', '&ensp;')
-
-
-class PhotoNode(Node):
-  def __init__(self, level: int, image_name: str, image_index: int, show_on_children_level: int, context: List[Paragraph], parent: Node):
-    super(PhotoNode, self).__init__(level, context, parent)
-    self.imageName = image_name
-    self.imageIndex = image_index
-    self.showOnChildrenLevel = show_on_children_level
-
-  def __repr__(self):
-    results = '- ' * self.level
-    if self.imageName:
-      results += self.imageName + "  ShowOnChildren : " + str(self.showOnChildrenLevel) + os.linesep
-    for c in self.children:
-      results += repr(c)
-    return results
+from node import Node, PhotoNode
 
 
 def get_image_index(package: OpcPackage, imageName: str) -> int:
@@ -216,3 +137,11 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
     i += 1
   
   return root
+
+if __name__ == "__main__":
+  f = open('Microsoft Word Documents to Anki converter demo.docx', 'rb')
+  pp = Package.open(f)
+  f.close()
+
+  root = convert_paragraphs_to_tree(pp)
+  print(Node.repr(root))
