@@ -1,9 +1,11 @@
-
+from __future__ import annotations
 import os
 import io
 import shutil
 import re
 import warnings
+
+from typing import List
 
 from PIL import Image
 
@@ -67,7 +69,7 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
   shutil.rmtree('image', ignore_errors=True)
   os.mkdir('image')
   
-  paragraphs = package.main_document_part.document.paragraphs
+  paragraphs = DocxToNode.getAllParagraphs(package)
   root = Node(0, [], None)
   cur_parent = root
   cur_heading_level = 0
@@ -75,10 +77,9 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
   # for loop does not work, https://stackoverflow.com/a/47532461
   i = 0
   while(i < len(paragraphs)):
-    p_style = paragraphs[i].style.name.split()
-
-    # ©©8 means combine the next 8 lines inside Document into only 1 text node, so only 1 Anki Note is created
-    if paragraphs[i].text[0:2] == '©©' and paragraphs[i].text[2].isnumeric():
+    p_style = DocxToNode.getParagraphStyle(paragraphs[i]).split()
+    
+    if DocxToNode.isBulletList(paragraphs[i]):
       howManyLinesToSkip = int(paragraphs[i].text.split()[0].replace('©©', ''))
       group_paragraphs = paragraphs[i:i+howManyLinesToSkip+1]
       new_node = Node(cur_parent.level+1, group_paragraphs, cur_parent)
@@ -86,16 +87,7 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
       i += howManyLinesToSkip + 1
       continue
     
-    # ®®1 means the very next line is a pics, and this pics is going to show on every notes created from each line of this heading level in this document
-    # For example:
-    # Heading 1
-    # texttext1
-    # ®®2
-    # image1.png
-    # - Heading 2
-    # - texttext2
-    # In this example, 2 Anki Notes is created, texttext1 and texttext2. Each note has image1.png in it.
-    if paragraphs[i].text[0:2] == '®®' and paragraphs[i].text[2].isnumeric():
+    if DocxToNode.isPicture(paragraphs[i]):
       imageInfo = [paragraphs[i]]
       show_on_children_level = int(paragraphs[i].text[2])
       i += 1
@@ -113,22 +105,22 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
       image.save('image/'+image_name)
 
     # normal paragraph, treat as same level as current level, check if this line is not empty
-    if p_style[0].lower() == 'normal' and paragraphs[i].text.replace(' ','').replace('\n',''):
+    if DocxToNode.isNormalParagraph(paragraphs[i]) and not DocxToNode.isEmptyParagraph(paragraphs[i]):
       new_node = Node(cur_parent.level+1, [paragraphs[i]], cur_parent)
       cur_parent.add(new_node)
 
     # If the heading line is actually empty, then skip to next one
-    if not paragraphs[i].text.replace(' ', '').replace('\t', '').replace('\n', ''):
+    if DocxToNode.isEmptyParagraph(paragraphs[i]):
       i += 1
       continue
     
     # new paragraph has lower(bigger) heading, so move parent node must be higher up, closer to root
-    if p_style[0].lower() == 'heading' and int(p_style[1]) <= cur_heading_level:
+    if p_style[0] == 'heading' and int(p_style[1]) <= cur_heading_level:
       for _ in range(int(p_style[1]), cur_heading_level + 1):
         cur_parent = cur_parent.parent
     
     # This should go in either bigger heading, or smaller heading ( child node ). New node is created under current parent
-    if p_style[0].lower() == 'heading':
+    if p_style[0] == 'heading':
       new_node = Node(cur_parent.level+1, [paragraphs[i]], cur_parent)
       cur_parent.add(new_node)
       cur_parent = new_node
@@ -137,6 +129,117 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
     i += 1
   
   return root
+
+class DocxToNode:
+  
+  @staticmethod
+  def getAllParagraphs(docx_package: OpcPackage) -> List[Paragraph]:
+    """
+    Convert from python-docx->Package into list of sentences ( python-docx called paragraph )
+
+    Docx documents is stored in XML format.
+    Paragraph is basically infos inside <w:p> tags
+
+    ```xml
+    <w:p>
+      ...
+				<w:pStyle w:val="Title"/>
+			...
+		</w:p>
+		<w:p>
+			...
+				<w:t xml:space="preserve">One sentence will result in </w:t>
+			...
+				<w:t xml:space="preserve">1</w:t>
+			...
+				<w:t xml:space="preserve"> Anki note.</w:t>
+			...
+		</w:p>
+    ...
+    ```
+
+    You can open a docx document, by 
+    1) convert .docx to .zip, and unzip
+    2) open document.xwl in text editor
+
+    """
+    return docx_package.main_document_part.document.paragraphs
+  
+  @staticmethod
+  def getParagraphStyle(para: Paragraph) -> str:
+    """
+    This return what this sentence ( paragraph )'s hierarchy
+
+    Example:
+    title
+    heading 1
+    heading 2
+    normal
+
+    """
+    return para.style.name.lower()
+  
+  @staticmethod
+  def isEmptyParagraph(para: Paragraph) -> bool:
+    """
+    Check for empty sentence ( paragraph ) in docx file
+    """
+    return not para.text.replace(' ', '').replace('\t', '').replace('\n', '')
+  
+  @classmethod
+  def isNormalParagraph(cls, para: Paragraph) -> bool:
+    """
+    Check if this sentence ( paragraph ) is normal, not a heading
+    """
+    return cls.getParagraphStyle(para) == 'normal'
+  
+  @staticmethod
+  def isPicture(para: Paragraph) -> bool:
+    """
+    We define a ®®0 paragraph, the next one is a picture
+
+    There are currently no way to detect a picture in a paragraph automatically.
+    So, User must specify ®® on the previous line/paragraph inside the docx document
+    
+    Also, the digit means do you want to show the picture in 1 Anki note, or multeple
+
+    ®®0 means treat the picture as 1 note
+    ®®1 means the very next line is a pics, and this pics is going to show on every notes \
+      created from each line of this heading level in this document
+    
+    For example:
+    Heading 1
+    texttext1
+    ®®2
+    image1.png
+    - Heading 2
+    - texttext2
+    In this example, 2 Anki Notes is created, texttext1 and texttext2. 
+    Each note has image1.png in it.
+
+    """
+    return para.text[0:2] == '®®' and para.text[2].isnumeric()
+  
+  @staticmethod
+  def isBulletList(para: Paragraph) -> bool:
+    """
+    Check if User want to group multiple paragraphs into 1 Node.
+
+    ©©8 means combine the next 8 lines inside Document into only 1 text node,
+     so only 1 Anki Note is created
+
+    Example:
+    ```
+    ©©2 List in 1 Anki’s note:
+      1) ©©2 means the next 2 lines to be included in 1 note
+      2) So this line will be included too
+    ```
+    All of these will show in 1 Anki note only
+    """
+    return para.text[0:2] == '©©' and para.text[2].isnumeric()
+
+
+
 
 if __name__ == "__main__":
   f = open('Microsoft Word Documents to Anki converter demo.docx', 'rb')
