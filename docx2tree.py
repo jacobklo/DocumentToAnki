@@ -71,7 +71,7 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
   
   paragraphs = DocxToNode.getAllParagraphs(package)
   root = Node(0, [], None)
-  cur_parent = root
+  curParent = root
   cur_heading_level = 0
 
   # for loop does not work, https://stackoverflow.com/a/47532461
@@ -79,40 +79,44 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
   while(i < len(paragraphs)):
     p_style = DocxToNode.getParagraphStyle(paragraphs[i]).split()
     
-    if DocxToNode.lengthOfBulletList(paragraphs[i]) > 0:
-      howManyLinesToSkip = int(paragraphs[i].text.split()[0].replace('©©', ''))
-      group_paragraphs = paragraphs[i:i+howManyLinesToSkip+1]
-      new_node = Node(cur_parent.level+1, group_paragraphs, cur_parent)
-      cur_parent.add(new_node)
-      i += howManyLinesToSkip + 1
-      continue
-    
-    if DocxToNode.isPicture(paragraphs[i]):
-      newNode = DocxToNode.createPhotoNote(paragraphs[i], paragraphs[i+1], package, cur_parent)
-      cur_parent.add(newNode)
-      # increment i here 1 more than normal, because a PhotoNode paragraph takes 2 paragraphs
-      i += 1
+    if p_style[0] != 'heading':
+      newNode = None
+      if DocxToNode.lengthOfBulletList(paragraphs[i]) > 0:
+        howManyLinesToSkip = DocxToNode.lengthOfBulletList(paragraphs[i])
+        group_paragraphs = paragraphs[i:i+howManyLinesToSkip+1]
+        newNode = Node(curParent.level+1, group_paragraphs, curParent)
+        curParent.add(newNode)
+        i += howManyLinesToSkip + 1
+        continue
+      
+      elif DocxToNode.isPicture(paragraphs[i]):
+        newNode = DocxToNode.createPhotoNote(paragraphs[i], paragraphs[i+1], package, curParent)
+        curParent.add(newNode)
+        # increment i here 1 more than normal, because a PhotoNode paragraph takes 2 paragraphs
+        i += 1
 
-    # normal paragraph, treat as same level as current level, check if this line is not empty
-    if DocxToNode.isNormalParagraph(paragraphs[i]) and not DocxToNode.isEmptyParagraph(paragraphs[i]):
-      new_node = Node(cur_parent.level+1, [paragraphs[i]], cur_parent)
-      cur_parent.add(new_node)
+      # normal paragraph, treat as same level as current level, check if this line is not empty
+      elif DocxToNode.isNormalParagraph(paragraphs[i]) and not DocxToNode.isEmptyParagraph(paragraphs[i]):
+        newNode = Node(curParent.level+1, [paragraphs[i]], curParent)
+        curParent.add(newNode)
 
-    # If the heading line is actually empty, then skip to next one
-    if DocxToNode.isEmptyParagraph(paragraphs[i]):
-      i += 1
-      continue
+      # If the heading line is actually empty, then skip to next one
+      else:#if DocxToNode.isEmptyParagraph(paragraphs[i]):
+        i += 1
+        continue
     
-    # new paragraph has lower(bigger) heading, so move parent node must be higher up, closer to root
-    if p_style[0] == 'heading' and int(p_style[1]) <= cur_heading_level:
-      for _ in range(int(p_style[1]), cur_heading_level + 1):
-        cur_parent = cur_parent.parent
+    elif p_style[0] == 'heading':
     
-    # This should go in either bigger heading, or smaller heading ( child node ). New node is created under current parent
-    if p_style[0] == 'heading':
-      new_node = Node(cur_parent.level+1, [paragraphs[i]], cur_parent)
-      cur_parent.add(new_node)
-      cur_parent = new_node
+      # new paragraph has lower(bigger) heading, so move parent node must be higher up, closer to root
+      if int(p_style[1]) <= cur_heading_level:
+        for _ in range(int(p_style[1]), cur_heading_level + 1):
+          curParent = curParent.parent
+      
+      # This should go in either bigger heading, or smaller heading ( child node ).
+      # New node is created under current parent
+      new_node = Node(curParent.level+1, [paragraphs[i]], curParent)
+      curParent.add(new_node)
+      curParent = new_node
       cur_heading_level = int(p_style[1])
     
     i += 1
