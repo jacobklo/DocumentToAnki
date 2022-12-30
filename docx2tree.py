@@ -79,7 +79,7 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
   while(i < len(paragraphs)):
     p_style = DocxToNode.getParagraphStyle(paragraphs[i]).split()
     
-    if DocxToNode.isBulletList(paragraphs[i]):
+    if DocxToNode.lengthOfBulletList(paragraphs[i]) > 0:
       howManyLinesToSkip = int(paragraphs[i].text.split()[0].replace('©©', ''))
       group_paragraphs = paragraphs[i:i+howManyLinesToSkip+1]
       new_node = Node(cur_parent.level+1, group_paragraphs, cur_parent)
@@ -88,21 +88,10 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
       continue
     
     if DocxToNode.isPicture(paragraphs[i]):
-      imageInfo = [paragraphs[i]]
-      show_on_children_level = int(paragraphs[i].text[2])
+      newNode = DocxToNode.createPhotoNote(paragraphs[i], paragraphs[i+1], package, cur_parent)
+      cur_parent.add(newNode)
+      # increment i here 1 more than normal, because a PhotoNode paragraph takes 2 paragraphs
       i += 1
-      image_name = get_image_name(paragraphs[i])
-      if not image_name:
-        warnings.warn("Cannot process image : " + imageInfo[0].text)
-        continue
-
-      image_index = get_image_index(package, image_name)
-      new_node = PhotoNode(cur_parent.level+1, image_name, image_index, show_on_children_level, imageInfo, cur_parent)
-      cur_parent.add(new_node)
-
-      img_binary = package.image_parts._image_parts[image_index].blob
-      image = Image.open(io.BytesIO(img_binary))
-      image.save('image/'+image_name)
 
     # normal paragraph, treat as same level as current level, check if this line is not empty
     if DocxToNode.isNormalParagraph(paragraphs[i]) and not DocxToNode.isEmptyParagraph(paragraphs[i]):
@@ -192,6 +181,28 @@ class DocxToNode:
     Check if this sentence ( paragraph ) is normal, not a heading
     """
     return cls.getParagraphStyle(para) == 'normal'
+
+  @staticmethod
+  def lengthOfBulletList(para: Paragraph) -> int:
+    """
+    Check if User want to group multiple paragraphs into 1 Node.
+
+    ©©8 means combine the next 8 lines inside Document into only 1 text node,
+     so only 1 Anki Note is created
+
+    Example:
+    ```text
+    ©©2 List in 1 Anki’s note:
+      1) ©©2 means the next 2 lines to be included in 1 note
+      2) So this line will be included too
+    ```
+    All of these will show in 1 Anki note only
+    
+    """
+    if para.text[0:2] == '©©' and para.text[2].isnumeric():
+      # return number of lines this list has, indicate after ©©
+      return int(para.text.split()[0].replace('©©', ''))
+    return -1
   
   @staticmethod
   def isPicture(para: Paragraph) -> bool:
@@ -221,22 +232,33 @@ class DocxToNode:
     return para.text[0:2] == '®®' and para.text[2].isnumeric()
   
   @staticmethod
-  def isBulletList(para: Paragraph) -> bool:
+  def createPhotoNote(paraRR: Paragraph, nextPara: Paragraph, package: OpcPackage, curParent: Node) -> PhotoNode:
     """
-    Check if User want to group multiple paragraphs into 1 Node.
+    Create a PhotoNode, based on 2 paragraphs
+    
+    We define a ®®0 paragraph, the next one is a picture.
 
-    ©©8 means combine the next 8 lines inside Document into only 1 text node,
-     so only 1 Anki Note is created
+    Check the docstring on isPicture()
 
-    Example:
-    ```
-    ©©2 List in 1 Anki’s note:
-      1) ©©2 means the next 2 lines to be included in 1 note
-      2) So this line will be included too
-    ```
-    All of these will show in 1 Anki note only
+    show_on_children_level: 0 means only show this pic on 1 Anki Note
+    , 1 means shows on this level's notes
+    , 2 means this level and next children,s level
     """
-    return para.text[0:2] == '©©' and para.text[2].isnumeric()
+    imageInfo = [paraRR]
+    show_on_children_level = int(paraRR.text[2])
+
+    image_name = get_image_name(nextPara)
+    if not image_name:
+      warnings.warn("Cannot process image : " + imageInfo[0].text)
+      return None
+
+    image_index = get_image_index(package, image_name)
+
+    img_binary = package.image_parts._image_parts[image_index].blob
+    image = Image.open(io.BytesIO(img_binary))
+    image.save('image/'+image_name)
+
+    return PhotoNode(curParent.level+1, image_name, image_index, show_on_children_level, imageInfo, curParent)
 
 
 
