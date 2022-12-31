@@ -1,9 +1,5 @@
 from __future__ import annotations
-import os
-import io
-import shutil
-import re
-import warnings
+import os, io, shutil, re, warnings
 
 from typing import List
 
@@ -179,7 +175,7 @@ class DocxToNode:
     """
     Check if this sentence ( paragraph ) is normal, not a heading
     """
-    return cls.getParagraphStyle(para) == 'normal'
+    return cls.getParagraphStyle(para).split()[0] == 'normal'
 
   @staticmethod
   def lengthOfBulletList(para: Paragraph) -> int:

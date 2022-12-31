@@ -1,11 +1,13 @@
 
 import genanki
-import hashlib
+import hashlib, os
 from pathlib import Path
-from typing import List, Set, Tuple
-from docx.package import Package
+from typing import List, Tuple
 
-from docx2tree import Node, PhotoNode
+from docx.package import Package
+from docx.text.paragraph import Paragraph
+
+from docx2tree import Node, PhotoNode, DocxToNode
 from docx2tree import convert_paragraphs_to_tree
 
 
@@ -64,11 +66,11 @@ def create_node_to_anki_notes(root: Node, model: genanki.Model, filename: str) -
 
 def _get_question_answer_branch(node: Node):
   question, answer = '', ''
-  branch = node.get_branch_str()
+  branch = NodeToAnki.unicodeToHTMLEntities(node.getBranchStr())
   # So Document can save a line into multiple context, this is to add them all. For example: "This is <bold>one</bold> line" has 3 contexts
   for p in node.context:
-    question += node.convert_paragraph_to_html(p, True) + '<br>'
-    answer += node.convert_paragraph_to_html(p, False) + '<br>'
+    question += NodeToAnki.convertParagraphToHtml(p, True) + '<br>'
+    answer += NodeToAnki.convertParagraphToHtml(p, False) + '<br>'
   return (question, answer, branch)
 
 
@@ -84,7 +86,7 @@ def _create_node_to_notes(root: Node, current_level: int, all_photos_from_parent
 
   # Check if there is a multi-line single Node, which is identify using '©©' and
   # Check if node is text paragraph
-  if root.is_normal() and '®®' not in root.context[0].text and isinstance(root.context, List):
+  if len(root.context) > 0 and DocxToNode.isNormalParagraph(root.context[0]) and '®®' not in root.context[0].text and isinstance(root.context, List):
     question, answer, branch = _get_question_answer_branch(root)
     tags = root.get_tags()
     media = ''
@@ -163,6 +165,37 @@ th {
 
 @font-face { font-family: DejaVu Sans Mono; src: url('_DejaVuSansMono.ttf'); }
 '''
+
+
+class NodeToAnki:
+  @staticmethod
+  def unicodeToHTMLEntities(text: str) -> str:
+    """
+    Replace space and nextline character to HTML entity
+    """
+    return text.replace(os.linesep, '<br>').replace('\t', '&ensp;')
+  
+  @staticmethod
+  def convertParagraphToHtml(para: Paragraph, hideBold: bool) -> str:
+    """
+    Convert Node text to HTML format, where Anki can read.
+
+    :para:: python-docx Paragraph. Like a sentence
+    :hideBold:: If true, all the bold/italic text will all turn into _
+    """
+    result = ''
+    if not DocxToNode.isNormalParagraph(para) or DocxToNode.isEmptyParagraph(para):
+      return ''
+    for r in para.runs:
+      if r.bold:
+        result += '<b>' + ('_' * len(r.text) if hideBold else r.text) + '</b>'
+      elif r.italic:
+        result += '<i>' + ('_' * len(r.text) if hideBold else r.text) + '</i>'
+      else:
+        result += r.text
+    return result
+
+
 
 if __name__ == "__main__":
   docx_to_anki_notes("Microsoft Word Documents to Anki converter demo")

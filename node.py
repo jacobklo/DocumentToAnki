@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import List, Set
-import os
-import re
+import os, re
 from docx.text.paragraph import Paragraph
 
 class Node:
@@ -10,15 +9,9 @@ class Node:
     self.parent = parent
     self.level = 0 if parent is None else parent.level+1
     self.children = []
-  
 
   def add(self, node: Node):
     self.children.append(node)
-  
-
-  def is_normal(self):
-    return self.context is not None and len(self.context) > 0 and self.context[0].style.name.split()[0].lower() == 'normal'
-
 
   def __repr__(self):
     """
@@ -50,14 +43,13 @@ class Node:
       return self.context[0].text[0:20]
     return 'UNKNOWN NODE'
 
-
   @staticmethod
   def repr(node: Node):
     """
     Show all content in this node, and all children nodes recursively
 
     Example:
-    repr(root)
+    Node.repr(root)
     >>> UNKNOWN NODE
     - One sentence will re
     - This is shown in Ank
@@ -75,7 +67,6 @@ class Node:
       results += Node.repr(c)
     return results
 
-
   def get_tags(self) -> List[str]:
     if not self.parent or len(self.context) <= 0: return Set()
     node = self.parent
@@ -87,32 +78,25 @@ class Node:
       node = node.parent
     return results
 
+  def getBranchStr(self) -> str:
+    """
+    Return all the heading nodes as a string. From this node up to root Node.
 
-  def get_branch_str(self) -> str:
-    node = self.parent
-    print(self)
-    result = '- ' #* node.level + node.context[0].text
+    Example:
+    Node.getBranchStr(grandChildrenNode)
+    @return root\n
+    -Heading1\n
+    --Heading2
+    """
+    node = self
+    result = ''
     while node.parent:
       node = node.parent
       if len(node.context) > 0:
         result = '- ' * node.level + node.context[0].text + os.linesep + result
       else:
         result = 'root ' + os.linesep + result
-    return result.replace(os.linesep, '<br>').replace('\t', '&ensp;')
-  
-
-  def convert_paragraph_to_html(self, paragraph: Paragraph, hide_bold: bool) -> str:
-    result = ''
-    if not self.is_normal() or not paragraph.text.replace(' ', ''):
-      return ''
-    for r in paragraph.runs:
-      if r.bold:
-        result += '<b>' + ('_' * len(r.text) if hide_bold else r.text) + '</b>'
-      elif r.italic:
-        result += '<i>' + ('_' * len(r.text) if hide_bold else r.text) + '</i>'
-      else:
-        result += r.text
-    return result.replace(os.linesep, '<br>').replace('\t', '&ensp;')
+    return result
 
 
 class PhotoNode(Node):
