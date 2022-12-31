@@ -10,29 +10,10 @@ from typing import List
 from PIL import Image
 
 from docx.text.paragraph import Paragraph
+from docx.text.run import Run
 from docx.package import Package, OpcPackage
 
 from node import Node, PhotoNode
-
-
-def get_image_index(package: OpcPackage, imageName: str) -> int:
-  document = package.main_document_part.document
-  for i in range(len(document.paragraphs)):
-    if i >= len(package.image_parts._image_parts):
-      raise Exception('The Save function from Microsoft Word create a different image name for each image, please use Google Docs and export as .docx file only')
-    if imageName in package.image_parts._image_parts[i].partname:
-      return i
-  return -1
-
-
-def get_image_name(paragraph: Paragraph ):
-  if not paragraph.runs:
-    return ""
-  cur_xml = paragraph.runs[0].element.xml
-  regex_match = re.search("image[0-9]*.[a-zA-Z]+", cur_xml)
-  if regex_match:
-    return regex_match.group(0)
-  return ""
 
 
 def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
@@ -44,25 +25,25 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
   2) Combine multiple lines into 1 Node with "©©"
   3) Identify photos with "®®"
 
-  Input: OpcPackage, which is the file structure of a docx file
+  Input: OpcPackage, which is the file structure of a docx file\n
   You can get a OpcPackage by following:
-  
+  ```python
   f = open('Document.docx', 'rb')
   package = Package.open(f)
   f.close()
-
+  ```
   
   Node parent/children structure is based on Headings in Document
 
-  Example.docx contains:
-  Heading1
-  - word1
-  - Heading2
+  Example.docx contains:\n
+  Heading1\n
+  -word1\n
+  -Heading2\n
   -- word2
 
-  Node root => Heading1
-  root.children[1] => word1
-  root.children[2] => Heading2
+  Node root => Heading1\n
+  root.children[1] => word1\n
+  root.children[2] => Heading2\n
   root.children[2].children[1] => word2
   """
   # reset image directory first
@@ -70,7 +51,7 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
   os.mkdir('image')
   
   paragraphs = DocxToNode.getAllParagraphs(package)
-  root = Node(0, [], None)
+  root = Node(None, [])
   curParent = root
   cur_heading_level = 0
 
@@ -80,30 +61,27 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
     p_style = DocxToNode.getParagraphStyle(paragraphs[i]).split()
     
     if p_style[0] != 'heading':
-      newNode = None
-      if DocxToNode.lengthOfBulletList(paragraphs[i]) > 0:
-        howManyLinesToSkip = DocxToNode.lengthOfBulletList(paragraphs[i])
-        group_paragraphs = paragraphs[i:i+howManyLinesToSkip+1]
-        newNode = Node(curParent.level+1, group_paragraphs, curParent)
-        curParent.add(newNode)
-        i += howManyLinesToSkip + 1
-        continue
       
-      elif DocxToNode.isPicture(paragraphs[i]):
+      if DocxToNode.isPicture(paragraphs[i]):
         newNode = DocxToNode.createPhotoNote(paragraphs[i], paragraphs[i+1], package, curParent)
         curParent.add(newNode)
         # increment i here 1 more than normal, because a PhotoNode paragraph takes 2 paragraphs
         i += 1
+      
+      elif DocxToNode.lengthOfBulletList(paragraphs[i]) > 0:
+        howManyLinesToSkip = DocxToNode.lengthOfBulletList(paragraphs[i])
+        group_paragraphs = paragraphs[i:i+howManyLinesToSkip+1]
+        newNode = Node(curParent, group_paragraphs)
+        curParent.add(newNode)
+        i += howManyLinesToSkip
 
       # normal paragraph, treat as same level as current level, check if this line is not empty
       elif DocxToNode.isNormalParagraph(paragraphs[i]) and not DocxToNode.isEmptyParagraph(paragraphs[i]):
-        newNode = Node(curParent.level+1, [paragraphs[i]], curParent)
+        newNode = Node(curParent, [paragraphs[i]])
         curParent.add(newNode)
 
       # If the heading line is actually empty, then skip to next one
-      else:#if DocxToNode.isEmptyParagraph(paragraphs[i]):
-        i += 1
-        continue
+      # else:#if DocxToNode.isEmptyParagraph(paragraphs[i]):
     
     elif p_style[0] == 'heading':
     
@@ -114,7 +92,7 @@ def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
       
       # This should go in either bigger heading, or smaller heading ( child node ).
       # New node is created under current parent
-      new_node = Node(curParent.level+1, [paragraphs[i]], curParent)
+      new_node = Node(curParent, [paragraphs[i]])
       curParent.add(new_node)
       curParent = new_node
       cur_heading_level = int(p_style[1])
@@ -151,9 +129,9 @@ class DocxToNode:
     ...
     ```
 
-    You can open a docx document, by 
-    1) convert .docx to .zip, and unzip
-    2) open document.xwl in text editor
+    You can open a docx document, by:
+      1) convert .docx to .zip, and unzip\n
+      2) open document.xwl in text editor
 
     """
     return docx_package.main_document_part.document.paragraphs
@@ -164,14 +142,31 @@ class DocxToNode:
     This return what this sentence ( paragraph )'s hierarchy
 
     Example:
-    title
-    heading 1
-    heading 2
-    normal
+      title\n
+      heading 1\n
+      heading 2\n
+      normal
 
     """
     return para.style.name.lower()
   
+  @staticmethod
+  def getParagraphRuns(para: Paragraph) -> List[Run]:
+    """
+    Each paragraph has multiple runs, to store different styles
+
+    Example
+    ```text
+    One sentence will result in **1 Anki** note.
+    ```
+
+    This paragraph will have 3 runs:
+      - One sentence will result in \n
+      - 1 Anki (in bold style )\n
+      - note
+    """
+    return para.runs
+
   @staticmethod
   def isEmptyParagraph(para: Paragraph) -> bool:
     """
@@ -218,22 +213,75 @@ class DocxToNode:
     
     Also, the digit means do you want to show the picture in 1 Anki note, or multeple
 
-    ®®0 means treat the picture as 1 note
-    ®®1 means the very next line is a pics, and this pics is going to show on every notes \
+    Rules:
+      - ®®0 means treat the picture as 1 note
+      - ®®1 means the very next line is a pics, and this pics is going to show on every notes
       created from each line of this heading level in this document
     
-    For example:
-    Heading 1
-    texttext1
-    ®®2
-    image1.png
-    - Heading 2
-    - texttext2
-    In this example, 2 Anki Notes is created, texttext1 and texttext2. 
+    Example:\n
+    Heading 1\n
+    -texttext1\n
+    -®®2\n
+    -image1.png\n
+    -Heading 2\n
+    --texttext2\n
+
+    In this example, 2 Anki Notes is created, texttext1 and texttext2.\n
     Each note has image1.png in it.
 
     """
     return para.text[0:2] == '®®' and para.text[2].isnumeric()
+  
+  @staticmethod
+  def getImageName(para: Paragraph ) -> str:
+    """
+    Get the image filename stored inside the docx's xml
+
+    It always start as imageXX.EXT
+
+    Example:
+    ```xml
+    <w:r>
+      <w:rPr/>
+      <w:drawing>
+      ...
+                  <pic:cNvPr id="0" name="image2.png"/>
+      ...
+      </w:drawing>
+    </w:r>
+    ```
+
+    @return `**image2.png**`
+    """
+    if not DocxToNode.getParagraphRuns(para):
+      return ""
+    cur_xml = DocxToNode.getParagraphRuns(para)[0].element.xml
+    regex_match = re.search("image[0-9]*.[a-zA-Z]+", cur_xml)
+    if regex_match:
+      return regex_match.group(0)
+    return ""
+  
+  @staticmethod
+  def getImageIndex(package: OpcPackage, imageName: str) -> int:
+    """
+    Get the image stored inside document file structure
+
+    `package.image_parts._image_parts[i].partname` get the image path of inner file structure
+
+    /word/media/image1.png\n
+    /word/media/image1.png\n
+    /word/media/image2.png
+
+    @return the index that match the filename. For image2.png, it returns 2
+    """
+    document = package.main_document_part.document
+    for i in range(len(document.paragraphs)):
+      if i >= len(package.image_parts._image_parts):
+        raise Exception('The Save function from Microsoft Word create a different image name for each image, please use Google Docs and export as .docx file only')
+      
+      if imageName in package.image_parts._image_parts[i].partname:
+        return i
+    return -1
   
   @staticmethod
   def createPhotoNote(paraRR: Paragraph, nextPara: Paragraph, package: OpcPackage, curParent: Node) -> PhotoNode:
@@ -244,25 +292,25 @@ class DocxToNode:
 
     Check the docstring on isPicture()
 
-    show_on_children_level: 0 means only show this pic on 1 Anki Note
-    , 1 means shows on this level's notes
-    , 2 means this level and next children,s level
+    show_on_children_level: 0 means only show this pic on 1 Anki Note\n
+    , 1 means shows on this level's notes\n
+    , 2 means this level and next children's level
     """
     imageInfo = [paraRR]
     show_on_children_level = int(paraRR.text[2])
 
-    image_name = get_image_name(nextPara)
+    image_name = DocxToNode.getImageName(nextPara)
     if not image_name:
       warnings.warn("Cannot process image : " + imageInfo[0].text)
       return None
 
-    image_index = get_image_index(package, image_name)
+    image_index = DocxToNode.getImageIndex(package, image_name)
 
     img_binary = package.image_parts._image_parts[image_index].blob
     image = Image.open(io.BytesIO(img_binary))
     image.save('image/'+image_name)
 
-    return PhotoNode(curParent.level+1, image_name, image_index, show_on_children_level, imageInfo, curParent)
+    return PhotoNode(curParent, image_name, image_index, show_on_children_level, imageInfo)
 
 
 

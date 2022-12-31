@@ -5,10 +5,10 @@ import re
 from docx.text.paragraph import Paragraph
 
 class Node:
-  def __init__(self, level: int, context: List[Paragraph], parent: Node):
-    self.level = level
+  def __init__(self, parent: Node, context: List[Paragraph] ):
     self.context = context
     self.parent = parent
+    self.level = 0 if parent is None else parent.level+1
     self.children = []
   
 
@@ -116,8 +116,8 @@ class Node:
 
 
 class PhotoNode(Node):
-  def __init__(self, level: int, image_name: str, image_index: int, show_on_children_level: int, context: List[Paragraph], parent: Node):
-    super(PhotoNode, self).__init__(level, context, parent)
+  def __init__(self, parent: Node, image_name: str, image_index: int, show_on_children_level: int, context: List[Paragraph]):
+    super(PhotoNode, self).__init__(parent, context)
     self.imageName = image_name
     self.imageIndex = image_index
     self.showOnChildrenLevel = show_on_children_level
