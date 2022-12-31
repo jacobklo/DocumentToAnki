@@ -179,7 +179,7 @@ class NodeToAnki:
     if isinstance(n, PhotoNode) and n.showOnChildrenLevel == 0:
       question, answer, tableOfContent = NodeToAnki.getAnkiNoteFields(n)
       media = '<img src="' + n.imageName + '"><br>'
-      tags = n.get_tags()
+      tags = n.getAllParent()
       result += [MyNote(question, answer, media, tableOfContent, tags)]
       return result
 
@@ -188,7 +188,7 @@ class NodeToAnki:
     if len(n.context) > 0 and DocxToNode.isNormalParagraph(n.context[0]) \
       and '®®' not in n.context[0].text and isinstance(n.context, List):
       question, answer, tableOfContent = NodeToAnki.getAnkiNoteFields(n)
-      tags = n.get_tags()
+      tags = n.getAllParent()
       media = ''
       # For all photos that Parent and grandparent and up contains, add into Anki note as well
       # , because it may have info that need for that line/note

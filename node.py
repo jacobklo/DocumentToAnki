@@ -66,17 +66,16 @@ class Node:
     for c in node.children:
       results += Node.repr(c)
     return results
-
-  def get_tags(self) -> List[str]:
-    if not self.parent or len(self.context) <= 0: return Set()
-    node = self.parent
-    results = []
-    while node:
-      if (len(node.context) > 0):
-        tag = re.sub('[^A-Z]+', '_', node.context[0].text, 0, re.I).lower()
-        results += [tag]
+  
+  def getAllParent(self) -> List[str]:
+    node = self
+    result = []
+    while node.parent:
       node = node.parent
-    return results
+      if len(node.context) > 0:
+        tag = re.sub('[^a-zA-Z0-9]+', '_', node.context[0].text, 0, re.I).lower()
+        result += [tag]
+    return result
 
   def getBranchStr(self) -> str:
     """
