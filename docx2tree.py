@@ -12,7 +12,7 @@ from docx.package import Package, OpcPackage
 from node import Node, PhotoNode
 
 
-def convert_paragraphs_to_tree(package: OpcPackage) -> Node:
+def convertParagraphsToTree(package: OpcPackage) -> Node:
   """
   Convert a docx file package into internal Node tree structure
   
@@ -316,5 +316,5 @@ if __name__ == "__main__":
   pp = Package.open(f)
   f.close()
 
-  root = convert_paragraphs_to_tree(pp)
+  root = convertParagraphsToTree(pp)
   print(Node.repr(root))
