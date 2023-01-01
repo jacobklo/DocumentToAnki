@@ -1,11 +1,12 @@
 from __future__ import annotations
 import os, io, shutil, re, warnings
 
-from typing import List
+from typing import List, Dict
 
 from PIL import Image
 
 from docx.text.paragraph import Paragraph
+from docx.table import Table
 from docx.text.run import Run
 from docx.package import Package, OpcPackage
 
@@ -100,7 +101,7 @@ def convertParagraphsToTree(package: OpcPackage) -> Node:
 class DocxToNode:
   
   @staticmethod
-  def getAllParagraphs(docx_package: OpcPackage) -> List[Paragraph]:
+  def getAllParagraphs(docxPackage: OpcPackage) -> List[Paragraph]:
     """
     Convert from python-docx->Package into list of sentences ( python-docx called paragraph )
 
@@ -130,7 +131,27 @@ class DocxToNode:
       2) open document.xwl in text editor
 
     """
-    return docx_package.main_document_part.document.paragraphs
+    return docxPackage.main_document_part.document.paragraphs
+  
+  @staticmethod
+  def getAllTables(docxPackage: OpcPackage) -> Dict[str, Table]:
+    """
+    Get all the tables ( 1x1 only ) inside docx, where first line in the table as Key
+
+    Example:
+    ```text
+    ----------------------
+    |¨¨HelloWorldEg      |
+    |print("Hello world")|
+    ----------------------
+    ```
+    
+    @return  a dictionary { key: `¨¨HelloWorldEg`, value: `¨¨HelloWorldEg  print("Hello world")`
+    """
+    result = {}
+    for t in docxPackage.main_document_part.document.tables:
+      result[t.cell(0,0).text.partition('\n')[0]] = t.cell(0,0).text
+    return result
   
   @staticmethod
   def getParagraphStyle(para: Paragraph) -> str:

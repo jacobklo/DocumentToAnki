@@ -2,10 +2,11 @@ from __future__ import annotations
 import genanki
 import hashlib, os
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
-from docx.package import Package
+from docx.package import Package, OpcPackage
 from docx.text.paragraph import Paragraph
+from docx.table import Table
 
 from docx2tree import Node, PhotoNode, DocxToNode
 from docx2tree import convertParagraphsToTree
@@ -21,7 +22,7 @@ def docxToAnkiNotes(filename: str):
   my_model = MyModel(filename+' Model', fields=[{'name': 'Question'}, {'name': 'Answer'}, {
       'name': 'Media'}, {'name': 'TableOfContent'}])
 
-  notes = NodeToAnki.createAnkiNotes(root, my_model)
+  notes = NodeToAnki.createAnkiNotes(root, my_model, pp)
 
   my_deck = genanki.Deck(deck_id=abs(hash(filename)) % (10 ** 10), name=filename)
 
@@ -110,7 +111,7 @@ class NodeToAnki:
     """
     Replace space and nextline character to HTML entity
     """
-    return text.replace(os.linesep, '<br>').replace('\t', '&ensp;')
+    return text.replace(os.linesep, '<br>').replace('\t', '&ensp;&ensp;').replace(' ', '&ensp;')
   
   @staticmethod
   def convertParagraphToHtml(para: Paragraph, hideBold: bool) -> str:
@@ -147,12 +148,13 @@ class NodeToAnki:
     return (question, answer, tableOfContent)
   
   @classmethod
-  def createAnkiNotes(cls, root: Node, model: genanki.Model) -> List[genanki.Note]:
+  def createAnkiNotes(cls, root: Node, model: genanki.Model, package: OpcPackage) -> List[genanki.Note]:
     """
     From root Node, convert all nodes into Anki note cards
     """
     if not root: return []
-    allNotes = cls._createAnkiNotesRecursive(root, 0, [])
+    allCodeBlocks = DocxToNode.getAllTables(package)
+    allNotes = cls._createAnkiNotesRecursive(root, 0, [], allCodeBlocks)
     results = []
     for n in allNotes:
       newNotes = genanki.Note(model=model, fields=[n.question, n.answer, n.media, n.tableOfContent], tags=n.tags)
@@ -160,7 +162,7 @@ class NodeToAnki:
     return results
 
   @classmethod
-  def _createAnkiNotesRecursive(cls, n: Node, curLevel: int, allPhotosFromParent: List[PhotoNode]) -> List[MyNote]:
+  def _createAnkiNotesRecursive(cls, n: Node, curLevel: int, allPhotosFromParent: List[PhotoNode], allCodeBlocks: Dict[str, Table]) -> List[MyNote]:
     """
     Helper function, to create Anki note cards, from Node object, recursively
 
@@ -181,6 +183,16 @@ class NodeToAnki:
       media = '<img src="' + n.imageName + '"><br>'
       tags = n.getAllParent()
       result += [MyNote(question, answer, media, tableOfContent, tags)]
+      return result
+    
+    # Check if it is a code block, which is identify with ¨¨, follow by a 1x1 table. 
+    # code is inside the table
+    if len(n.context) > 0 and '¨¨' in n.context[0].text:
+      question = NodeToAnki.unicodeToHTMLEntities(allCodeBlocks[n.context[0].text])
+      answer = NodeToAnki.unicodeToHTMLEntities(allCodeBlocks[n.context[0].text])
+      tableOfContent = NodeToAnki.unicodeToHTMLEntities(n.getBranchStr())
+      tags = n.getAllParent()
+      result += [MyNote(question, answer, '', tableOfContent, tags)]
       return result
 
     # Check if there is a multi-line single Node, which is identify using '©©' and
@@ -210,9 +222,10 @@ class NodeToAnki:
 
     # recursive call each children, also appends this level pics, just in case they need to show on gran-children level
     for c in n.children:
-      result += cls._createAnkiNotesRecursive( c, curLevel + 1, allPhotosFromParent + new_all_photos_children)
+      result += cls._createAnkiNotesRecursive( c, curLevel + 1, allPhotosFromParent + new_all_photos_children, allCodeBlocks)
 
     return result
+
     
 
 class MyNote:
