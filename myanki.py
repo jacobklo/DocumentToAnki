@@ -44,7 +44,7 @@ class MyModel(genanki.Model):
   Also, create a hash for this Model, for Anki app to track future Notes update.
   """
   DefaultFrontTemplate = '''
-  <div class="front">{{Path}}<br><br>{{Question}}</div>
+  <div class="front">{{TableOfContent}}<br><br>{{Question}}</div>
   '''
 
   DefaultBackTemplate = '''
@@ -67,21 +67,21 @@ class MyModel(genanki.Model):
 
   DefaultStyle = '''
   .card {
-  font-family: 'DejaVu Sans Mono';
-  text-align: left;
-  color: white;
-  background-color: rgba(42, 129, 151,1);
-  text-shadow: 0px 4px 3px rgba(0,0,0,0.4),
-              0px 8px 13px rgba(0,0,0,0.1),
-              0px 18px 23px rgba(0,0,0,0.1);
+    font-family: 'DejaVu Sans Mono';
+    text-align: left;
+    color: white;
+    background-color: rgba(42, 129, 151,1);
+    text-shadow: 0px 4px 3px rgba(0,0,0,0.4),
+                0px 8px 13px rgba(0,0,0,0.1),
+                0px 18px 23px rgba(0,0,0,0.1);
   }
 
   .front {
-    font-size: 14px;
+    font-size: 20px;
   }
 
   .back {
-    font-size: 14px;
+    font-size: 20px;
   }
 
   th {
