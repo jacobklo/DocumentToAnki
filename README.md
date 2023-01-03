@@ -1,4 +1,9 @@
 Convert Documents into Anki Note cards
+# How to run
+```shell
+python3 myanki.py document.docx
+```
+
 
 # Feature
 

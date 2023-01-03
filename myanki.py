@@ -1,6 +1,6 @@
 from __future__ import annotations
 import genanki
-import hashlib, os
+import hashlib, os, sys
 from pathlib import Path
 from typing import List, Tuple, Dict
 
@@ -13,9 +13,12 @@ from docx2tree import convertParagraphsToTree
 
 
 def docxToAnkiNotes(filename: str):
-  f = open(filename+'.docx', 'rb')
-  pp = Package.open(f)
-  f.close()
+  try:
+    f = open(filename, 'rb')
+    pp = Package.open(f)
+    f.close()
+  except:
+    print("Cannot open ", filename, "Must be a .docx file.")
 
   root = convertParagraphsToTree(pp)
 
@@ -241,4 +244,4 @@ class MyNote:
 
 
 if __name__ == "__main__":
-  docxToAnkiNotes("Microsoft Word Documents to Anki converter demo")
+  docxToAnkiNotes(sys.argv[1])
