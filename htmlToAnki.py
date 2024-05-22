@@ -32,14 +32,14 @@ def child_recursive(node: ET.Element, parent_node_data: List, callback: Callable
         node.remove(child)
 
     for child in node:
-        this_node_data = ''
-        if child.attrib and 'id' in child.attrib:
-            this_node_data = child.attrib['id']
-        child_recursive(child, parent_node_data + [this_node_data], callback)
+        child_id = child.attrib['id'] if child.attrib and 'id' in child.attrib else ''
+        child_recursive(child, parent_node_data + [child_id], callback)
     
+    node_id = node.attrib['id'] if node.attrib and 'id' in node.attrib else ''
+
     red_box_div = ET.Element('div')
     red_box_div.attrib['style'] = 'border-style: dotted; border-width: 5px; border-color: red;'
-    red_box_div.text = f'=== {parent_node_data} ===\n'
+    red_box_div.text = f'=== {parent_node_data + [node_id]} ===\n'
     red_box_div.extend(simple_text_children)
     node.insert(0, red_box_div)
     callback(red_box_div)
@@ -47,7 +47,7 @@ def child_recursive(node: ET.Element, parent_node_data: List, callback: Callable
     for child in complex_element_children:
         blue_box_div = ET.Element('div')
         blue_box_div.attrib['style'] = 'border-style: dotted; border-width: 5px; border-color: blue;'
-        blue_box_div.text = f'=== {parent_node_data} ===\n'
+        blue_box_div.text = f'=== {parent_node_data + [node_id]} ===\n'
         blue_box_div.append(child)
         node.append(blue_box_div)
         callback(blue_box_div)
@@ -57,7 +57,8 @@ def child_recursive(node: ET.Element, parent_node_data: List, callback: Callable
 
 def node_to_anki(nodes: List[ET.Element]):
     filename = 'Python Docs'
-    my_model = MyModel(filename, fields=[{'name': 'Question'}, {'name': 'Answer'}, {
+    css = open('pydoctheme.css').read()
+    my_model = MyModel(filename, css=css, fields=[{'name': 'Question'}, {'name': 'Answer'}, {
       'name': 'Media'}, {'name': 'TableOfContent'}])
 
     my_deck = genanki.Deck(deck_id=abs(hash(filename)) % (10 ** 10), name=filename)
