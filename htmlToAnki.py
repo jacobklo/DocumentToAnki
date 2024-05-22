@@ -1,5 +1,6 @@
 import xml.etree.ElementTree as ET
 from typing import List, Callable
+import os
 
 from myanki import MyModel
 
@@ -41,6 +42,7 @@ def child_recursive(node: ET.Element, parent_node_data: List, callback: Callable
     red_box_div.text = f'=== {parent_node_data} ===\n'
     red_box_div.extend(simple_text_children)
     node.insert(0, red_box_div)
+    callback(red_box_div)
 
     for child in complex_element_children:
         blue_box_div = ET.Element('div')
@@ -48,9 +50,8 @@ def child_recursive(node: ET.Element, parent_node_data: List, callback: Callable
         blue_box_div.text = f'=== {parent_node_data} ===\n'
         blue_box_div.append(child)
         node.append(blue_box_div)
-    
-    for n in node:
-        callback(n)
+        callback(blue_box_div)
+
 
 
 
@@ -62,6 +63,7 @@ def node_to_anki(nodes: List[ET.Element]):
     my_deck = genanki.Deck(deck_id=abs(hash(filename)) % (10 ** 10), name=filename)
 
     for i, n in enumerate(nodes):
+        os.makedirs('out', exist_ok=True)
         ET.ElementTree(n).write(f'out/{i}.html', encoding='utf-8')
         
         with open(f'out/{i}.html', 'r', encoding='utf-8') as f:
