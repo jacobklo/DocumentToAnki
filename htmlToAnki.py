@@ -126,7 +126,7 @@ def node_to_anki(questions: List[str], answers: List[str], table_of_contents: Li
 
     for i, q in enumerate(questions):
         
-        anki_note = genanki.Note(model=my_model, fields=[q, answers[i], '', table_of_contents[i]], tags='python-docs')
+        anki_note = genanki.Note(model=my_model, fields=[q, answers[i], '', table_of_contents[i]], tags=['python-docs'])
         my_deck.add_note(anki_note)
 
     anki_output = genanki.Package(my_deck)
