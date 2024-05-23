@@ -1,30 +1,75 @@
 import xml.etree.ElementTree as ET
 from typing import List, Callable
-import io
+from html.parser import HTMLParser
+import io, html
 
 from myanki import MyModel
 
 import genanki
 
 
+class HTMLToText(HTMLParser):
+  def __init__(self):
+    super().__init__()
+    self.text = []
+    
+  def handle_data(self, data):
+    self.text.append(data)
+  
+  def handle_starttag(self, tag, attrs):
+    if tag in {'br', 'p', 'div'}:
+      self.text.append('\n')
+  
+  def handle_endtag(self, tag):
+    if tag in {'p', 'div'}:
+      self.text.append('\n')
+  
+  def get_text(self):
+    return ''.join(self.text).strip()
+
+
+
+
 def node_str(node):
     return f'{node.tag} {node.attrib} Children: {len(node)} {[n.tag for n in node]}\n'
 
 
-def get_node_header(node: ET.Element) -> ET.Element:
-    for child in node:
-        if child.tag in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
-            return child
-    return None
+def convert_html_to_text(node: ET.Element) -> str:
+    parser = HTMLToText()
+    string_io = io.BytesIO()
+    ET.ElementTree(node).write(string_io, encoding='utf-8')
+    html_str = string_io.getvalue().decode('utf-8')
+    parser.feed(html_str)
+    string_io.close()
+    return html.unescape(parser.get_text())
 
 
 def draw_boundary(node: ET.Element, **kwargs):
-    parent_nodes = kwargs.get('parent_nodes', [])
+    '''
+    Draw a red border around the node
+    '''
     node.attrib['style'] = 'border-style: dotted; border-width: 5px; border-color: red;'
-    node.text = f'=== {parent_nodes} ===\n'
+    
+
+def get_parent_hierarchy(node: ET.Element, **kwargs) -> str:
+    '''
+    For each parent node, get the id attribute and return as a string
+    '''
+    parent_nodes = kwargs.get('parent_nodes', [])
+    attr_id = []
+    for n in parent_nodes:
+        if 'id' in n.attrib:
+            attr_id.append(f'<h4>{n.attrib["id"]}</h4>')
+    return ''.join(attr_id)
 
 
 def check_contain_attr(node_attr: str, attrs: List) -> bool:
+    '''
+    <div class="highlight-python3">
+    
+    result = check_contain_attr(child.attrib['class'], ['highlight-python3', 'highlight-pycon')
+    print(result) # True
+    '''
     for attr in attrs:
         if attr in node_attr:
             return True
@@ -36,51 +81,53 @@ def child_recursive(node: ET.Element, parent_node_data: List, callback: Callable
     simple_text_children, complex_element_children = [], []
 
     for child in node:
+        # Group elements that are simple text together
         if child.tag in ['span', 'p', 'ul', 'ol', 'dt', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
-            simple_text_children.append(child)
+            simple_text_children.append(child)  
+        
+        # These elements will just stay as its, do not recursively go into them
         elif child.attrib and 'class' in child.attrib and check_contain_attr(child.attrib['class'], ['highlight-python3', 'highlight-pycon', 'doctest', 'describe', 'py method', 'py attribute', 'responsive-table__container', 'admonition']):
             complex_element_children.append(child)
     
+    # Remowe the processed children to add a wrapper div for each
     for child in simple_text_children + complex_element_children:
         node.remove(child)
 
+    # Recursively go into each child
     for child in node:
-        child_recursive(child, parent_node_data + [get_node_header(child)], callback)
+        child_recursive(child, parent_node_data + [child], callback)
 
-    red_box_div = ET.Element('div')
-    red_box_div.extend(simple_text_children)
-    callback(red_box_div, parent_nodes=parent_node_data + [node])
-    node.insert(0, red_box_div)
+    # Group all simple text elements together, callback will process only that wrapper div, but also have all parents nodes
+    group_div = ET.Element('div')
+    group_div.attrib['class'] = 'custom-group'
+    group_div.extend(simple_text_children)
+    callback(group_div, parent_nodes=parent_node_data + [node])
+    node.insert(0, group_div)
     
 
     for child in complex_element_children:
-        blue_box_div = ET.Element('div')
-        callback(blue_box_div, parent_nodes=parent_node_data + [node])
-        blue_box_div.append(child)
-        node.append(blue_box_div)
+        group_div = ET.Element('div')
+        group_div.attrib['class'] = 'custom-group'
+        group_div.append(child)
+        callback(group_div, parent_nodes=parent_node_data + [node])
+        node.append(group_div)
         
 
 
 
-
-def node_to_anki(nodes: List[ET.Element]):
+def node_to_anki(questions: List[str], answers: List[str], table_of_contents: List[str]):
     filename = 'Python Docs'
     css = open('pydoctheme.css').read()
-    my_model = MyModel(filename, css=css, fields=[{'name': 'Question'}, {'name': 'Answer'}, {
+    front_html = '<div class="front">{{TableOfContent}}<br><br><div style="white-space: pre-wrap;">{{Question}}</div></div>'
+    my_model = MyModel(filename, css=css, front_html=front_html, fields=[{'name': 'Question'}, {'name': 'Answer'}, {
       'name': 'Media'}, {'name': 'TableOfContent'}])
 
     my_deck = genanki.Deck(deck_id=abs(hash(filename)) % (10 ** 10), name=filename)
 
-    for i, n in enumerate(nodes):
-        string_io = io.BytesIO()
-        ET.ElementTree(n).write(string_io, encoding='utf-8')
+    for i, q in enumerate(questions):
         
-        content = string_io.getvalue().decode('utf-8')
-
-        anki_note = genanki.Note(model=my_model, fields=[content, content, '', ''], tags='')
+        anki_note = genanki.Note(model=my_model, fields=[q, answers[i], '', table_of_contents[i]], tags='python-docs')
         my_deck.add_note(anki_note)
-
-        string_io.close()
 
     anki_output = genanki.Package(my_deck)
     anki_output.write_to_file(filename+'.apkg')
@@ -90,14 +137,22 @@ def node_to_anki(nodes: List[ET.Element]):
 if __name__ == '__main__':
     tree = ET.parse('tmp.html')
 
-    out_nodes = []
+    out_question, out_answer, out_table_of_content = [], [], []
     def callback(node, **kwargs):
-        draw_boundary(node, **kwargs)
-        out_nodes.append(node)
+        # draw_boundary(node, **kwargs)
+        out_question.append(convert_html_to_text(node))
+
+        string_io = io.BytesIO()
+        ET.ElementTree(node).write(string_io, encoding='utf-8')
+        out_answer.append(string_io.getvalue().decode('utf-8'))
+        string_io.close()
+    
+        content = get_parent_hierarchy(node, **kwargs)
+        out_table_of_content.append(content)
     
     child_recursive(tree.getroot(), [], callback)
 
-    node_to_anki(out_nodes)
+    node_to_anki(out_question, out_answer, out_table_of_content)
     
     tree.write('out.html', encoding='utf-8')
 
