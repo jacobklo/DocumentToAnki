@@ -852,6 +852,8 @@ abbr, acronym {
 pre {
   overflow: auto;
   overflow-y: hidden;  /* fixes display issues on Chrome browsers */
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 pre, div[class*="highlight-"] {

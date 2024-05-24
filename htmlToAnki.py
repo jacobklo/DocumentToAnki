@@ -135,8 +135,8 @@ def node_to_anki(questions: List[str], answers: List[str], table_of_contents: Li
 <div class="front">
   {{TableOfContent}}
   <br>
-  <input id="prob-sidebar" type="range" min="97" max="100" step="0.03" value="98" style="width: 100%;">
-  <span id="sidebar-value">98</span>
+  <input id="prob-sidebar" type="range" min="0" max="100" step="0.5" value="50" style="width: 100%;">
+  <span id="sidebar-value"></span>
   <div class="question" style="display:none">
     {{Question}}
   </div>
@@ -151,42 +151,51 @@ function getRandom(max) {
   return Math.random() * max;
 }
 
- function hideSomeText(node, prob=98) { 
-  const children = node.querySelectorAll('*');
-  for (let i = 0; i < children.length; i++) {
-    hideSomeText(children[i], prob);
-  }
-  if (children.length == 0  && (node.tagName == 'SPAN' || node.tagName == 'P' || node.tagName == 'EM')) {
-    let words = node.textContent.split(/\s+/);
-    for (let i = 0; i < words.length; i++) {
-      if (getRandom(100) > prob) {
-        words[i] = '_'.repeat(words[i].length);
-      }
-    }
 
-    node.textContent = words.join(' ');
-  }
+function hideSomeText(node, prob=98) { 
+  
+  node.childNodes.forEach(n => {
+    
+    if (n.nodeType === Node.TEXT_NODE) {
+      let words = n.textContent.split(/\s+/);
+      for (let i = 0; i < words.length; i++) {
+        if (getRandom(100) > prob) {
+          if (words[i].length > 0) {
+            words[i] = words[i][0] + '_'.repeat(words[i].length - 1);
+          }
+        }
+      }
+      n.textContent = words.join(' ');
+    } 
+    
+    else if (n.nodeType === Node.ELEMENT_NODE) {
+      hideSomeText(n, prob)
+    }
+  });
+
 }
 
-document.getElementById('prob-sidebar').addEventListener('input', function(event) {
+
+function update(prob) {
+
   let div = document.querySelector('.question');
   let clone2 = document.querySelector('.question-clone');
 
   div.innerHTML = clone2.innerHTML;
-  hideSomeText(div, event.target.value);
+  hideSomeText(div, prob);
   
   div.style.display = 'none';
   div.style.display = 'block';
 
-  document.getElementById('sidebar-value').textContent = event.target.value;
+  document.getElementById('sidebar-value').textContent = prob;
+}
+
+document.getElementById('prob-sidebar').addEventListener('input', function(event) {
+  update(event.target.value);
 });
 
 setTimeout(() => {
-  let div = document.querySelector('.question');
-  div.style.display = 'block';
-
-  hideSomeText(div);
-
+  update(60);
 }, 100);
 
 </script>
