@@ -1,3 +1,4 @@
+import copy
 import xml.etree.ElementTree as ET
 from typing import List, Callable
 from html.parser import HTMLParser
@@ -76,6 +77,18 @@ def check_contain_attr(node_attr: str, attrs: List) -> bool:
     return False
 
 
+
+def remove_text_children(node: ET.Element) -> ET.Element:
+    '''
+    Remove all text children from the node
+    '''
+    out_node = copy.copy(node)
+    for child in out_node:
+        if child.tag in ['span', 'p', 'dd', 'div']:
+            out_node.remove(child)
+    return out_node
+
+
 def child_recursive(node: ET.Element, parent_node_data: List, callback: Callable):
      
     simple_text_children, complex_element_children = [], []
@@ -118,7 +131,66 @@ def child_recursive(node: ET.Element, parent_node_data: List, callback: Callable
 def node_to_anki(questions: List[str], answers: List[str], table_of_contents: List[str]):
     filename = 'Python Docs'
     css = open('pydoctheme.css').read()
-    front_html = '<div class="front">{{TableOfContent}}<br><br><div style="white-space: pre-wrap;">{{Question}}</div></div>'
+    front_html = '''
+<div class="front">
+  {{TableOfContent}}
+  <br>
+  <input id="prob-sidebar" type="range" min="97" max="100" step="0.03" value="98" style="width: 100%;">
+  <span id="sidebar-value">98</span>
+  <div class="question" style="display:none">
+    {{Question}}
+  </div>
+  <div class="question-clone" style="display:none">
+    {{Question}}
+  </div>
+</div>
+
+<script>
+
+function getRandom(max) {
+  return Math.random() * max;
+}
+
+ function hideSomeText(node, prob=98) { 
+  const children = node.querySelectorAll('*');
+  for (let i = 0; i < children.length; i++) {
+    hideSomeText(children[i], prob);
+  }
+  if (children.length == 0  && (node.tagName == 'SPAN' || node.tagName == 'P' || node.tagName == 'EM')) {
+    let words = node.textContent.split(/\s+/);
+    for (let i = 0; i < words.length; i++) {
+      if (getRandom(100) > prob) {
+        words[i] = '_'.repeat(words[i].length);
+      }
+    }
+
+    node.textContent = words.join(' ');
+  }
+}
+
+document.getElementById('prob-sidebar').addEventListener('input', function(event) {
+  let div = document.querySelector('.question');
+  let clone2 = document.querySelector('.question-clone');
+
+  div.innerHTML = clone2.innerHTML;
+  hideSomeText(div, event.target.value);
+  
+  div.style.display = 'none';
+  div.style.display = 'block';
+
+  document.getElementById('sidebar-value').textContent = event.target.value;
+});
+
+setTimeout(() => {
+  let div = document.querySelector('.question');
+  div.style.display = 'block';
+
+  hideSomeText(div);
+
+}, 100);
+
+</script>
+'''
     my_model = MyModel(filename, css=css, front_html=front_html, fields=[{'name': 'Question'}, {'name': 'Answer'}, {
       'name': 'Media'}, {'name': 'TableOfContent'}])
 
@@ -140,7 +212,6 @@ if __name__ == '__main__':
     out_question, out_answer, out_table_of_content = [], [], []
     def callback(node, **kwargs):
         # draw_boundary(node, **kwargs)
-        out_question.append(convert_html_to_text(node))
 
         string_io = io.BytesIO()
         ET.ElementTree(node).write(string_io, encoding='utf-8')
@@ -149,10 +220,11 @@ if __name__ == '__main__':
     
         content = get_parent_hierarchy(node, **kwargs)
         out_table_of_content.append(content)
+        
     
     child_recursive(tree.getroot(), [], callback)
 
-    node_to_anki(out_question, out_answer, out_table_of_content)
+    node_to_anki(out_answer, out_answer, out_table_of_content)
     
     tree.write('out.html', encoding='utf-8')
 
