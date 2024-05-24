@@ -131,35 +131,32 @@ def child_recursive(node: ET.Element, parent_node_data: List, callback: Callable
 def node_to_anki(questions: List[str], answers: List[str], table_of_contents: List[str]):
     filename = 'Python Docs'
     css = open('pydoctheme.css').read()
-    front_html = '''
-<div class="front">
-  {{TableOfContent}}
-  <br>
-  <input id="prob-sidebar" type="range" min="0" max="100" step="0.5" value="50" style="width: 100%;">
-  <span id="sidebar-value"></span>
-  <div class="question" style="display:none">
-    {{Question}}
-  </div>
-  <div class="question-clone" style="display:none">
-    {{Question}}
-  </div>
-</div>
+    front_html =  '''
 
 <script>
-
-function getRandom(max) {
-  return Math.random() * max;
+if (typeof hljs === "undefined") {
+    var script = document.createElement('script');
+    script.src = "_highlight.min.js";
+    script.async = false;
+    document.head.appendChild(script);
 }
 
+var script = document.createElement('script');
+script.src = 'https://cdnjs.cloudflare.com/ajax/libs/seedrandom/3.0.5/seedrandom.min.js';
+script.async = false;
+document.head.appendChild(script);
+document.head.removeChild(script);
 
-function hideSomeText(node, prob=98) { 
+
+
+function hideSomeText(node, prob, random_gen_func) { 
   
   node.childNodes.forEach(n => {
     
     if (n.nodeType === Node.TEXT_NODE) {
       let words = n.textContent.split(/\s+/);
       for (let i = 0; i < words.length; i++) {
-        if (getRandom(100) > prob) {
+        if (random_gen_func() > prob) {
           if (words[i].length > 0) {
             words[i] = words[i][0] + '_'.repeat(words[i].length - 1);
           }
@@ -169,7 +166,7 @@ function hideSomeText(node, prob=98) {
     } 
     
     else if (n.nodeType === Node.ELEMENT_NODE) {
-      hideSomeText(n, prob)
+      hideSomeText(n, prob, random_gen_func)
     }
   });
 
@@ -177,12 +174,13 @@ function hideSomeText(node, prob=98) {
 
 
 function update(prob) {
+  let random_gen_func = new Math.seedrandom('hello.');
 
   let div = document.querySelector('.question');
   let clone2 = document.querySelector('.question-clone');
 
   div.innerHTML = clone2.innerHTML;
-  hideSomeText(div, prob);
+  hideSomeText(div, prob, random_gen_func);
   
   div.style.display = 'none';
   div.style.display = 'block';
@@ -195,13 +193,26 @@ document.getElementById('prob-sidebar').addEventListener('input', function(event
 });
 
 setTimeout(() => {
-  update(60);
+  update(0.5);
 }, 100);
 
 </script>
+
+
+<div class="front">
+  {{TableOfContent}}
+  <br>
+  <input id="prob-sidebar" type="range" min="0" max="1" step="0.005" value="0.5" style="width: 100%;">
+  <span id="sidebar-value"></span>
+  <div class="question" style="display:none">
+    {{Question}}
+  </div>
+  <div class="question-clone" style="display:none">
+    {{Question}}
+  </div>
+</div>
 '''
-    my_model = MyModel(filename, css=css, front_html=front_html, fields=[{'name': 'Question'}, {'name': 'Answer'}, {
-      'name': 'Media'}, {'name': 'TableOfContent'}])
+    my_model = MyModel(filename, css=css, front_html=front_html, fields=[{'name': 'Question'}, {'name': 'Answer'}, {'name': 'Media'}, {'name': 'TableOfContent'}])
 
     my_deck = genanki.Deck(deck_id=abs(hash(filename)) % (10 ** 10), name=filename)
 
