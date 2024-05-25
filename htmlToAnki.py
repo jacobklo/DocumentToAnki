@@ -1,4 +1,5 @@
 import copy
+from pathlib import Path
 import xml.etree.ElementTree as ET
 from typing import List, Callable
 from html.parser import HTMLParser
@@ -132,96 +133,51 @@ def node_to_anki(questions: List[str], answers: List[str], table_of_contents: Li
     filename = 'Python Docs'
     css = open('pydoctheme.css').read()
     front_html =  '''
-
+<!-- HACK: Dynamically load JavaScript files, as Anki does not support static load -->
 <script>
-if (typeof hljs === "undefined") {
-    var script = document.createElement('script');
-    script.src = "_highlight.min.js";
-    script.async = false;
-    document.head.appendChild(script);
-}
+var script2 = document.createElement('script');
+script2.src = 'handlePyDocs.js';
+script2.async = false;
+document.head.appendChild(script2);
+document.head.removeChild(script2);
 
-var script = document.createElement('script');
-script.src = 'https://cdnjs.cloudflare.com/ajax/libs/seedrandom/3.0.5/seedrandom.min.js';
-script.async = false;
-document.head.appendChild(script);
-document.head.removeChild(script);
-
-
-
-function hideSomeText(node, prob, random_gen_func) { 
-  
-  node.childNodes.forEach(n => {
-    
-    if (n.nodeType === Node.TEXT_NODE) {
-      let words = n.textContent.split(/\s+/);
-      for (let i = 0; i < words.length; i++) {
-        if (random_gen_func() > prob) {
-          if (words[i].length > 0) {
-            words[i] = words[i][0] + '_'.repeat(words[i].length - 1);
-          }
-        }
-      }
-      n.textContent = words.join(' ');
-    } 
-    
-    else if (n.nodeType === Node.ELEMENT_NODE) {
-      hideSomeText(n, prob, random_gen_func)
-    }
-  });
-
-}
-
-
-function update(prob) {
-  let random_gen_func = new Math.seedrandom('hello.');
-
-  let div = document.querySelector('.question');
-  let clone2 = document.querySelector('.question-clone');
-
-  div.innerHTML = clone2.innerHTML;
-  hideSomeText(div, prob, random_gen_func);
-  
-  div.style.display = 'none';
-  div.style.display = 'block';
-
-  document.getElementById('sidebar-value').textContent = prob;
-}
-
-document.getElementById('prob-sidebar').addEventListener('input', function(event) {
-  update(event.target.value);
-});
-
-setTimeout(() => {
-  update(0.5);
-}, 100);
-
+setTimeout(() => update(0.8), 50);
 </script>
-
 
 <div class="front">
   {{TableOfContent}}
-  <br>
-  <input id="prob-sidebar" type="range" min="0" max="1" step="0.005" value="0.5" style="width: 100%;">
+
+  <input id="prob-sidebar" type="range" min="0" max="1" step="0.005" value="0.8" style="width: 100%;">
   <span id="sidebar-value"></span>
-  <div class="question" style="display:none">
-    {{Question}}
-  </div>
+
+  <!-- Question will be dynamically loaded by update() -->
+  <div class="question" style="display:none"></div>
+
+  <!-- Clone the original question data, as each update() will modify and hide some text in <div question> -->
   <div class="question-clone" style="display:none">
     {{Question}}
   </div>
 </div>
 '''
-    my_model = MyModel(filename, css=css, front_html=front_html, fields=[{'name': 'Question'}, {'name': 'Answer'}, {'name': 'Media'}, {'name': 'TableOfContent'}])
+    back_html = '''
+<div class="back">
+  {{TableOfContent}}
+  {{Answer}}
+  {{Media}}
+</div>
+'''
+    my_model = MyModel(filename, css=css, front_html=front_html, back_html=back_html, fields=[{'name': 'Question'}, {'name': 'Answer'}, {'name': 'Media'}, {'name': 'TableOfContent'}])
 
     my_deck = genanki.Deck(deck_id=abs(hash(filename)) % (10 ** 10), name=filename)
 
     for i, q in enumerate(questions):
-        
-        anki_note = genanki.Note(model=my_model, fields=[q, answers[i], '', table_of_contents[i]], tags=['python-docs'])
+        # HACK: Force import JavaScript file as image media on each card, so Anki will actually import it to collection
+        media = '<img src="seedrandom.js"><img src="handlePyDocs.js">'
+        anki_note = genanki.Note(model=my_model, fields=[q, answers[i], media, table_of_contents[i]], tags=['python-docs'])
         my_deck.add_note(anki_note)
 
     anki_output = genanki.Package(my_deck)
+    anki_output.media_files = ['seedrandom.js', 'handlePyDocs.js']
     anki_output.write_to_file(filename+'.apkg')
     
     
