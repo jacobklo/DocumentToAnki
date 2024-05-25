@@ -3,12 +3,12 @@ import os, io, shutil, re, warnings
 
 from typing import List, Dict
 
-from PIL import Image
+# from PIL import Image
 
-from docx.text.paragraph import Paragraph
-from docx.table import Table
-from docx.text.run import Run
-from docx.package import Package, OpcPackage
+# from docx.text.paragraph import Paragraph
+# from docx.table import Table
+# from docx.text.run import Run
+# from docx.package import Package, OpcPackage
 
 from node import Node, PhotoNode
 
