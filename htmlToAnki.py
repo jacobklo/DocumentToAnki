@@ -1,57 +1,12 @@
-import copy
-from pathlib import Path
+
 import xml.etree.ElementTree as ET
 from typing import List, Callable
-from html.parser import HTMLParser
-import io, html
+import io
 
 from myanki import MyModel
 
 import genanki
 
-
-class HTMLToText(HTMLParser):
-  def __init__(self):
-    super().__init__()
-    self.text = []
-    
-  def handle_data(self, data):
-    self.text.append(data)
-  
-  def handle_starttag(self, tag, attrs):
-    if tag in {'br', 'p', 'div'}:
-      self.text.append('\n')
-  
-  def handle_endtag(self, tag):
-    if tag in {'p', 'div'}:
-      self.text.append('\n')
-  
-  def get_text(self):
-    return ''.join(self.text).strip()
-
-
-
-
-def node_str(node):
-    return f'{node.tag} {node.attrib} Children: {len(node)} {[n.tag for n in node]}\n'
-
-
-def convert_html_to_text(node: ET.Element) -> str:
-    parser = HTMLToText()
-    string_io = io.BytesIO()
-    ET.ElementTree(node).write(string_io, encoding='utf-8')
-    html_str = string_io.getvalue().decode('utf-8')
-    parser.feed(html_str)
-    string_io.close()
-    return html.unescape(parser.get_text())
-
-
-def draw_boundary(node: ET.Element, **kwargs):
-    '''
-    Draw a red border around the node
-    '''
-    node.attrib['style'] = 'border-style: dotted; border-width: 5px; border-color: red;'
-    
 
 def get_parent_hierarchy(node: ET.Element, **kwargs) -> str:
     '''
@@ -77,17 +32,6 @@ def check_contain_attr(node_attr: str, attrs: List) -> bool:
             return True
     return False
 
-
-
-def remove_text_children(node: ET.Element) -> ET.Element:
-    '''
-    Remove all text children from the node
-    '''
-    out_node = copy.copy(node)
-    for child in out_node:
-        if child.tag in ['span', 'p', 'dd', 'div']:
-            out_node.remove(child)
-    return out_node
 
 
 def child_recursive(node: ET.Element, parent_node_data: List, callback: Callable):
@@ -148,7 +92,9 @@ setTimeout(() => update(0.8), 50);
   {{TableOfContent}}
 
   <input id="prob-sidebar" type="range" min="0" max="1" step="0.005" value="0.8" style="width: 100%;">
-  <span id="sidebar-value"></span>
+  <span id="prob-value"></span>
+  <input id="seed-sidebar" type="range" min="0" max="1" step="0.05" value="0.5" style="width: 100%;">
+  <span id="seed-value"></span>
 
   <!-- Question will be dynamically loaded by update() -->
   <div class="question" style="display:none"></div>
@@ -172,7 +118,7 @@ setTimeout(() => update(0.8), 50);
 
     for i, q in enumerate(questions):
         # HACK: Force import JavaScript file as image media on each card, so Anki will actually import it to collection
-        media = '<img src="seedrandom.js"><img src="handlePyDocs.js">'
+        media = '<img src="seedrandom.js" style="display:none"><img src="handlePyDocs.js" style="display:none">'
         anki_note = genanki.Note(model=my_model, fields=[q, answers[i], media, table_of_contents[i]], tags=['python-docs'])
         my_deck.add_note(anki_note)
 

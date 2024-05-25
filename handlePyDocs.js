@@ -31,8 +31,13 @@ function hideSomeText(node, prob, random_gen_func) {
 }
 
 
-function update(prob) {
-  let random_gen_func = new Math.seedrandom('hello.');
+function update(prob, seed) {
+  let prob_sidebar = document.getElementById('prob-sidebar').value;
+  prob_sidebar.value = prob;
+  let seed_sidebar = document.getElementById('seed-sidebar').value;
+  seed_sidebar.value = seed;
+
+  let random_gen_func = new Math.seedrandom(seed);
 
   let div = document.querySelector('.question');
   let clone2 = document.querySelector('.question-clone');
@@ -43,9 +48,16 @@ function update(prob) {
   div.style.display = 'none';
   div.style.display = 'block';
 
-  document.getElementById('sidebar-value').textContent = prob;
+  document.getElementById('prob-value').textContent = 'Show : ' + Math.floor(prob * 100) + '%';
+  document.getElementById('seed-value').textContent = 'Seed : '+ seed;
 }
 
 document.getElementById('prob-sidebar').addEventListener('input', function(event) {
-  update(event.target.value);
+  seed = document.getElementById('seed-sidebar').value;
+  update(event.target.value, seed);
+});
+
+document.getElementById('seed-sidebar').addEventListener('input', function(event) {
+  prob = document.getElementById('prob-sidebar').value;
+  update(prob, event.target.value);
 });
