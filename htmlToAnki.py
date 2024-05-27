@@ -8,16 +8,17 @@ from myanki import MyModel
 import genanki
 
 
-def get_parent_hierarchy(node: ET.Element, **kwargs) -> str:
+def get_parent_hierarchy(node: ET.Element, **kwargs) -> List[str]:
     '''
     For each parent node, get the id attribute and return as a string
     '''
     parent_nodes = kwargs.get('parent_nodes', [])
-    attr_id = []
+    attrs = []
     for n in parent_nodes:
         if 'id' in n.attrib:
-            attr_id.append(f'<h4>{n.attrib["id"]}</h4>')
-    return ''.join(attr_id)
+            if n.attrib["id"] not in attrs:
+                attrs.append(n.attrib["id"])
+    return attrs
 
 
 def check_contain_attr(node_attr: str, attrs: List) -> bool:
@@ -31,6 +32,7 @@ def check_contain_attr(node_attr: str, attrs: List) -> bool:
         if attr in node_attr:
             return True
     return False
+  # any(attr in node_attr for attr in attrs)
 
 
 
@@ -73,8 +75,8 @@ def child_recursive(node: ET.Element, parent_node_data: List, callback: Callable
 
 
 
-def node_to_anki(questions: List[str], answers: List[str], table_of_contents: List[str]):
-    filename = 'Python Docs'
+def node_to_anki(answers: List[str], table_of_contents: List[List[str]]):
+    filename = 'PythonDocs'
     css = open('pydoctheme.css').read()
     front_html =  '''
 <!-- HACK: Dynamically load JavaScript files, as Anki does not support static load -->
@@ -114,15 +116,20 @@ setTimeout(() => update(0.8), 50);
 '''
     my_model = MyModel(filename, css=css, front_html=front_html, back_html=back_html, fields=[{'name': 'Question'}, {'name': 'Answer'}, {'name': 'Media'}, {'name': 'TableOfContent'}])
 
-    my_deck = genanki.Deck(deck_id=abs(hash(filename)) % (10 ** 10), name=filename)
+    decks = {}
+    for t in table_of_contents:
+        deck_name = f'{filename}::{"::".join(t)}'
+        decks[deck_name] = genanki.Deck(deck_id=abs(hash(deck_name)) % (10 ** 10), name=deck_name)
 
-    for i, q in enumerate(questions):
+    for i, ans in enumerate(answers):
         # HACK: Force import JavaScript file as image media on each card, so Anki will actually import it to collection
         media = '<img src="seedrandom.js" style="display:none"><img src="handlePyDocs.js" style="display:none">'
-        anki_note = genanki.Note(model=my_model, fields=[q, answers[i], media, table_of_contents[i]], tags=['python-docs'])
-        my_deck.add_note(anki_note)
+        table_of_content_html = ''.join([f'<h4>{t}</h4>' for t in table_of_contents[i]])
+        anki_note = genanki.Note(model=my_model, fields=[ans, answers[i], media, table_of_content_html], tags=['python-docs'])
+        deck_name = f'{filename}::{"::".join(table_of_contents[i])}'
+        decks[deck_name].add_note(anki_note)
 
-    anki_output = genanki.Package(my_deck)
+    anki_output = genanki.Package(list(decks.values()))
     anki_output.media_files = ['seedrandom.js', 'handlePyDocs.js']
     anki_output.write_to_file(filename+'.apkg')
     
@@ -131,22 +138,23 @@ setTimeout(() => update(0.8), 50);
 if __name__ == '__main__':
     tree = ET.parse('tmp.html')
 
-    out_question, out_answer, out_table_of_content = [], [], []
+    answers: List[str] = []
+    table_of_contents: List[List[str]] = []
     def callback(node, **kwargs):
         # draw_boundary(node, **kwargs)
 
         string_io = io.BytesIO()
         ET.ElementTree(node).write(string_io, encoding='utf-8')
-        out_answer.append(string_io.getvalue().decode('utf-8'))
+        answers.append(string_io.getvalue().decode('utf-8'))
         string_io.close()
     
         content = get_parent_hierarchy(node, **kwargs)
-        out_table_of_content.append(content)
+        table_of_contents.append(content)
         
     
     child_recursive(tree.getroot(), [], callback)
 
-    node_to_anki(out_answer, out_answer, out_table_of_content)
+    node_to_anki(answers, table_of_contents)
     
     tree.write('out.html', encoding='utf-8')
 
