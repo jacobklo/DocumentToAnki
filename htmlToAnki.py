@@ -15,9 +15,8 @@ def get_parent_hierarchy(node: ET.Element, **kwargs) -> List[str]:
     parent_nodes = kwargs.get('parent_nodes', [])
     attrs = []
     for n in parent_nodes:
-        if 'id' in n.attrib:
-            if n.attrib["id"] not in attrs:
-                attrs.append(n.attrib["id"])
+        if 'id' in n.attrib and n.attrib["id"] not in attrs:
+            attrs.append(n.attrib["id"])
     return attrs
 
 
@@ -28,11 +27,7 @@ def check_contain_attr(node_attr: str, attrs: List) -> bool:
     result = check_contain_attr(child.attrib['class'], ['highlight-python3', 'highlight-pycon')
     print(result) # True
     '''
-    for attr in attrs:
-        if attr in node_attr:
-            return True
-    return False
-  # any(attr in node_attr for attr in attrs)
+    return any(attr in node_attr for attr in attrs)
 
 
 
@@ -135,27 +130,47 @@ setTimeout(() => update(0.8), 50);
     
     
 
+def find_substring(phrase: str, substring: str):
+    index = phrase.find(substring)
+    return phrase[index:] if index != -1 else None
+
+
+def find_last_substring(phrase, substring):
+    index = phrase.rfind(substring)
+    return phrase[:index+len(substring)] if index != -1 else None
+
+
 if __name__ == '__main__':
-    tree = ET.parse('tmp.html')
+    with open('tmp.html', 'r', encoding='utf-8') as f:
+        html_str = f.read()
 
-    answers: List[str] = []
-    table_of_contents: List[List[str]] = []
-    def callback(node, **kwargs):
-        # draw_boundary(node, **kwargs)
+        # Remove all the header and footer, only keep the main section
+        html_str = find_substring(html_str, '<section ')
+        html_str = find_last_substring(html_str, '</section>')
 
-        string_io = io.BytesIO()
-        ET.ElementTree(node).write(string_io, encoding='utf-8')
-        answers.append(string_io.getvalue().decode('utf-8'))
-        string_io.close()
+        with open('out.html', 'w', encoding='utf-8') as f:
+            f.write(html_str)
+
+    # tree = ET.parse('tmp.html')
+
+    # answers: List[str] = []
+    # table_of_contents: List[List[str]] = []
+    # def callback(node, **kwargs):
+    #     # draw_boundary(node, **kwargs)
+
+    #     string_io = io.BytesIO()
+    #     ET.ElementTree(node).write(string_io, encoding='utf-8')
+    #     answers.append(string_io.getvalue().decode('utf-8'))
+    #     string_io.close()
     
-        content = get_parent_hierarchy(node, **kwargs)
-        table_of_contents.append(content)
+    #     content = get_parent_hierarchy(node, **kwargs)
+    #     table_of_contents.append(content)
         
     
-    child_recursive(tree.getroot(), [], callback)
+    # child_recursive(tree.getroot(), [], callback)
 
-    node_to_anki(answers, table_of_contents)
+    # node_to_anki(answers, table_of_contents)
     
-    tree.write('out.html', encoding='utf-8')
+    # tree.write('out.html', encoding='utf-8')
 
 
